@@ -1,0 +1,113 @@
+:root {
+  --radius: 0.625rem;
+  --background: oklch(0.99 0.006 88);
+  --foreground: oklch(0.2 0.02 80);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.02 80);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.02 80);
+  /* Solgar gold (#c9a84c) as the brand primary */
+  --primary: oklch(0.743 0.117 89.5);
+  --primary-foreground: oklch(0.151 0.007 79.1);
+  --secondary: oklch(0.96 0.012 85);
+  --secondary-foreground: oklch(0.2 0.02 80);
+  --muted: oklch(0.96 0.012 85);
+  --muted-foreground: oklch(0.5 0.02 80);
+  --accent: oklch(0.94 0.03 88);
+  --accent-foreground: oklch(0.2 0.02 80);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.9 0.015 85);
+  --input: oklch(0.9 0.015 85);
+  --ring: oklch(0.743 0.117 89.5);
+  --chart-1: oklch(0.743 0.117 89.5);
+  --chart-2: oklch(0.843 0.12 91.6);
+  --chart-3: oklch(0.639 0.103 85.8);
+  --chart-4: oklch(0.55 0.08 60);
+  --chart-5: oklch(0.6 0.01 260);
+
+  /* Sidebar keeps the Solgar dark+gold identity in both light and dark mode */
+  --sidebar: oklch(0.151 0.007 79.1);
+  --sidebar-foreground: oklch(0.953 0.021 88.7);
+  --sidebar-primary: oklch(0.743 0.117 89.5);
+  --sidebar-primary-foreground: oklch(0.151 0.007 79.1);
+  --sidebar-accent: oklch(0.203 0.013 77.9);
+  --sidebar-accent-foreground: oklch(0.843 0.12 91.6);
+  --sidebar-border: oklch(0.743 0.117 89.5 / 15%);
+  --sidebar-ring: oklch(0.743 0.117 89.5);
+}
+
+.dark {
+  --background: oklch(0.151 0.007 79.1);
+  --foreground: oklch(0.953 0.021 88.7);
+  --card: oklch(0.203 0.013 77.9);
+  --card-foreground: oklch(0.953 0.021 88.7);
+  --popover: oklch(0.203 0.013 77.9);
+  --popover-foreground: oklch(0.953 0.021 88.7);
+  --primary: oklch(0.743 0.117 89.5);
+  --primary-foreground: oklch(0.151 0.007 79.1);
+  --secondary: oklch(0.26 0.016 78);
+  --secondary-foreground: oklch(0.953 0.021 88.7);
+  --muted: oklch(0.24 0.014 78);
+  --muted-foreground: oklch(0.7 0.03 85);
+  --accent: oklch(0.279 0.041 85);
+  --accent-foreground: oklch(0.843 0.12 91.6);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(0.743 0.117 89.5 / 15%);
+  --input: oklch(0.743 0.117 89.5 / 20%);
+  --ring: oklch(0.743 0.117 89.5);
+  --chart-1: oklch(0.743 0.117 89.5);
+  --chart-2: oklch(0.843 0.12 91.6);
+  --chart-3: oklch(0.639 0.103 85.8);
+  --chart-4: oklch(0.6 0.09 60);
+  --chart-5: oklch(0.65 0.015 260);
+
+  --sidebar: oklch(0.151 0.007 79.1);
+  --sidebar-foreground: oklch(0.953 0.021 88.7);
+  --sidebar-primary: oklch(0.743 0.117 89.5);
+  --sidebar-primary-foreground: oklch(0.151 0.007 79.1);
+  --sidebar-accent: oklch(0.203 0.013 77.9);
+  --sidebar-accent-foreground: oklch(0.843 0.12 91.6);
+  --sidebar-border: oklch(0.743 0.117 89.5 / 15%);
+  --sidebar-ring: oklch(0.743 0.117 89.5);
+}
+
+@theme inline {
+  --font-inter: 'Inter', 'sans-serif';
+  --font-manrope: 'Manrope', 'sans-serif';
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
