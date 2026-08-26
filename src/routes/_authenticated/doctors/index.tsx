@@ -1,13 +1,14 @@
+import z from 'zod'
 import { createFileRoute } from '@tanstack/react-router'
-import { Stethoscope } from 'lucide-react'
-import { PlaceholderPage } from '@/features/placeholder'
+import { Doctors } from '@/features/doctors'
+
+const doctorsSearchSchema = z.object({
+  brand: z.string().optional().catch(undefined),
+  page: z.number().optional().catch(1),
+  search: z.string().optional().catch(undefined),
+})
 
 export const Route = createFileRoute('/_authenticated/doctors/')({
-  component: () => (
-    <PlaceholderPage
-      title='Врачи'
-      description='Раздел в разработке. Здесь появится реестр врачей.'
-      icon={Stethoscope}
-    />
-  ),
+  validateSearch: doctorsSearchSchema,
+  component: Doctors,
 })

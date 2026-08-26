@@ -1,13 +1,14 @@
+import z from 'zod'
 import { createFileRoute } from '@tanstack/react-router'
-import { Store } from 'lucide-react'
-import { PlaceholderPage } from '@/features/placeholder'
+import { Pharmacies } from '@/features/pharmacies'
+
+const pharmaciesSearchSchema = z.object({
+  brand: z.string().optional().catch(undefined),
+  page: z.number().optional().catch(1),
+  search: z.string().optional().catch(undefined),
+})
 
 export const Route = createFileRoute('/_authenticated/pharmacies/')({
-  component: () => (
-    <PlaceholderPage
-      title='Аптеки'
-      description='Раздел в разработке. Здесь появится реестр аптек-партнёров.'
-      icon={Store}
-    />
-  ),
+  validateSearch: pharmaciesSearchSchema,
+  component: Pharmacies,
 })

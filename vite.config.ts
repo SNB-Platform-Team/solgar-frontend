@@ -21,6 +21,18 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    port: 5173,
+    proxy: {
+      // Forwards /sales/api/... to Django so the browser sees same-origin
+      // requests (localhost:5173) — the Django session cookie then travels
+      // with each request instead of being blocked as cross-site.
+      '/sales': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
+  },
   test: {
     silent: 'passed-only',
     unstubEnvs: true,
