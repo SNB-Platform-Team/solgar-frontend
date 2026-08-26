@@ -1,5 +1,7 @@
 import {
+  Building2,
   ClipboardCheck,
+  ClipboardList,
   FileBarChart,
   LayoutDashboard,
   Stethoscope,
@@ -36,9 +38,19 @@ export const sidebarData: SidebarData = {
           icon: Store,
         },
         {
+          title: 'Аптеки — Отчёт',
+          url: '/pharm-managerial',
+          icon: Building2,
+        },
+        {
           title: 'Врачи',
           url: '/doctors',
           icon: Stethoscope,
+        },
+        {
+          title: 'Врачи — Отчёт',
+          url: '/doctor-managerial',
+          icon: ClipboardList,
         },
         {
           title: 'Отчёты',

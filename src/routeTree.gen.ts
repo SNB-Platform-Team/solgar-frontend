@@ -27,10 +27,12 @@ import { Route as ClerkauthRouteRouteImport } from './routes/clerk/(auth)/route'
 import { Route as ClerkAuthenticatedRouteRouteImport } from './routes/clerk/_authenticated/route'
 import { Route as AuthenticatedAppsIndexRouteImport } from './routes/_authenticated/apps/index'
 import { Route as AuthenticatedChatsIndexRouteImport } from './routes/_authenticated/chats/index'
+import { Route as AuthenticatedDoctorManagerialIndexRouteImport } from './routes/_authenticated/doctor-managerial/index'
 import { Route as AuthenticatedDoctorsIndexRouteImport } from './routes/_authenticated/doctors/index'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedHelpCenterIndexRouteImport } from './routes/_authenticated/help-center/index'
 import { Route as AuthenticatedOnecStockIndexRouteImport } from './routes/_authenticated/onec-stock/index'
+import { Route as AuthenticatedPharmManagerialIndexRouteImport } from './routes/_authenticated/pharm-managerial/index'
 import { Route as AuthenticatedPharmaciesIndexRouteImport } from './routes/_authenticated/pharmacies/index'
 import { Route as AuthenticatedReportsIndexRouteImport } from './routes/_authenticated/reports/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
@@ -132,6 +134,12 @@ const AuthenticatedChatsIndexRoute = AuthenticatedChatsIndexRouteImport.update({
   path: '/chats/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDoctorManagerialIndexRoute =
+  AuthenticatedDoctorManagerialIndexRouteImport.update({
+    id: '/doctor-managerial/',
+    path: '/doctor-managerial/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDoctorsIndexRoute =
   AuthenticatedDoctorsIndexRouteImport.update({
     id: '/doctors/',
@@ -154,6 +162,12 @@ const AuthenticatedOnecStockIndexRoute =
   AuthenticatedOnecStockIndexRouteImport.update({
     id: '/onec-stock/',
     path: '/onec-stock/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPharmManagerialIndexRoute =
+  AuthenticatedPharmManagerialIndexRouteImport.update({
+    id: '/pharm-managerial/',
+    path: '/pharm-managerial/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedPharmaciesIndexRoute =
@@ -249,9 +263,11 @@ export interface FileRoutesByFullPath {
   '/clerk/user-management': typeof ClerkAuthenticatedUserManagementRoute
   '/apps/': typeof AuthenticatedAppsIndexRoute
   '/chats/': typeof AuthenticatedChatsIndexRoute
+  '/doctor-managerial/': typeof AuthenticatedDoctorManagerialIndexRoute
   '/doctors/': typeof AuthenticatedDoctorsIndexRoute
   '/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/onec-stock/': typeof AuthenticatedOnecStockIndexRoute
+  '/pharm-managerial/': typeof AuthenticatedPharmManagerialIndexRoute
   '/pharmacies/': typeof AuthenticatedPharmaciesIndexRoute
   '/reports/': typeof AuthenticatedReportsIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
@@ -281,9 +297,11 @@ export interface FileRoutesByTo {
   '/clerk/user-management': typeof ClerkAuthenticatedUserManagementRoute
   '/apps': typeof AuthenticatedAppsIndexRoute
   '/chats': typeof AuthenticatedChatsIndexRoute
+  '/doctor-managerial': typeof AuthenticatedDoctorManagerialIndexRoute
   '/doctors': typeof AuthenticatedDoctorsIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
   '/onec-stock': typeof AuthenticatedOnecStockIndexRoute
+  '/pharm-managerial': typeof AuthenticatedPharmManagerialIndexRoute
   '/pharmacies': typeof AuthenticatedPharmaciesIndexRoute
   '/reports': typeof AuthenticatedReportsIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
@@ -318,9 +336,11 @@ export interface FileRoutesById {
   '/clerk/_authenticated/user-management': typeof ClerkAuthenticatedUserManagementRoute
   '/_authenticated/apps/': typeof AuthenticatedAppsIndexRoute
   '/_authenticated/chats/': typeof AuthenticatedChatsIndexRoute
+  '/_authenticated/doctor-managerial/': typeof AuthenticatedDoctorManagerialIndexRoute
   '/_authenticated/doctors/': typeof AuthenticatedDoctorsIndexRoute
   '/_authenticated/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/_authenticated/onec-stock/': typeof AuthenticatedOnecStockIndexRoute
+  '/_authenticated/pharm-managerial/': typeof AuthenticatedPharmManagerialIndexRoute
   '/_authenticated/pharmacies/': typeof AuthenticatedPharmaciesIndexRoute
   '/_authenticated/reports/': typeof AuthenticatedReportsIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
@@ -353,9 +373,11 @@ export interface FileRouteTypes {
     | '/clerk/user-management'
     | '/apps/'
     | '/chats/'
+    | '/doctor-managerial/'
     | '/doctors/'
     | '/help-center/'
     | '/onec-stock/'
+    | '/pharm-managerial/'
     | '/pharmacies/'
     | '/reports/'
     | '/settings/'
@@ -385,9 +407,11 @@ export interface FileRouteTypes {
     | '/clerk/user-management'
     | '/apps'
     | '/chats'
+    | '/doctor-managerial'
     | '/doctors'
     | '/help-center'
     | '/onec-stock'
+    | '/pharm-managerial'
     | '/pharmacies'
     | '/reports'
     | '/settings'
@@ -421,9 +445,11 @@ export interface FileRouteTypes {
     | '/clerk/_authenticated/user-management'
     | '/_authenticated/apps/'
     | '/_authenticated/chats/'
+    | '/_authenticated/doctor-managerial/'
     | '/_authenticated/doctors/'
     | '/_authenticated/help-center/'
     | '/_authenticated/onec-stock/'
+    | '/_authenticated/pharm-managerial/'
     | '/_authenticated/pharmacies/'
     | '/_authenticated/reports/'
     | '/_authenticated/settings/'
@@ -574,6 +600,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChatsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/doctor-managerial/': {
+      id: '/_authenticated/doctor-managerial/'
+      path: '/doctor-managerial'
+      fullPath: '/doctor-managerial/'
+      preLoaderRoute: typeof AuthenticatedDoctorManagerialIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/doctors/': {
       id: '/_authenticated/doctors/'
       path: '/doctors'
@@ -600,6 +633,13 @@ declare module '@tanstack/react-router' {
       path: '/onec-stock'
       fullPath: '/onec-stock/'
       preLoaderRoute: typeof AuthenticatedOnecStockIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/pharm-managerial/': {
+      id: '/_authenticated/pharm-managerial/'
+      path: '/pharm-managerial'
+      fullPath: '/pharm-managerial/'
+      preLoaderRoute: typeof AuthenticatedPharmManagerialIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/pharmacies/': {
@@ -718,9 +758,11 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedAppsIndexRoute: typeof AuthenticatedAppsIndexRoute
   AuthenticatedChatsIndexRoute: typeof AuthenticatedChatsIndexRoute
+  AuthenticatedDoctorManagerialIndexRoute: typeof AuthenticatedDoctorManagerialIndexRoute
   AuthenticatedDoctorsIndexRoute: typeof AuthenticatedDoctorsIndexRoute
   AuthenticatedHelpCenterIndexRoute: typeof AuthenticatedHelpCenterIndexRoute
   AuthenticatedOnecStockIndexRoute: typeof AuthenticatedOnecStockIndexRoute
+  AuthenticatedPharmManagerialIndexRoute: typeof AuthenticatedPharmManagerialIndexRoute
   AuthenticatedPharmaciesIndexRoute: typeof AuthenticatedPharmaciesIndexRoute
   AuthenticatedReportsIndexRoute: typeof AuthenticatedReportsIndexRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
@@ -733,9 +775,13 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedAppsIndexRoute: AuthenticatedAppsIndexRoute,
   AuthenticatedChatsIndexRoute: AuthenticatedChatsIndexRoute,
+  AuthenticatedDoctorManagerialIndexRoute:
+    AuthenticatedDoctorManagerialIndexRoute,
   AuthenticatedDoctorsIndexRoute: AuthenticatedDoctorsIndexRoute,
   AuthenticatedHelpCenterIndexRoute: AuthenticatedHelpCenterIndexRoute,
   AuthenticatedOnecStockIndexRoute: AuthenticatedOnecStockIndexRoute,
+  AuthenticatedPharmManagerialIndexRoute:
+    AuthenticatedPharmManagerialIndexRoute,
   AuthenticatedPharmaciesIndexRoute: AuthenticatedPharmaciesIndexRoute,
   AuthenticatedReportsIndexRoute: AuthenticatedReportsIndexRoute,
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
