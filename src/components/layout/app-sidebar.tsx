@@ -1,3 +1,4 @@
+import { useAuthUser } from '@/lib/auth'
 import { useLayout } from '@/context/layout-provider'
 import {
   Sidebar,
@@ -13,6 +14,13 @@ import { NavUser } from './nav-user'
 
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
+  const me = useAuthUser()
+  // Real session info once /sales/api/me/ resolves — falls back to the
+  // static placeholder only for the brief instant before that happens.
+  const user = me
+    ? { ...sidebarData.user, name: me.display_name, email: me.username }
+    : sidebarData.user
+
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
       <SidebarHeader>
@@ -25,7 +33,7 @@ export function AppSidebar() {
         ))}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={sidebarData.user} />
+        <NavUser user={user} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

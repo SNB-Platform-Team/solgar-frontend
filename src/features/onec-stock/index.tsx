@@ -21,6 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { BrandSpinner } from '@/components/brand-spinner'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -45,11 +46,8 @@ export function OneCStock() {
   // only submitting the form (or pressing Enter) commits `search` to the URL.
   const [searchInput, setSearchInput] = useState(query)
 
-  const setSearch = (next: {
-    tab?: string
-    page?: number
-    search?: string
-  }) => navigate({ search: (prev) => ({ ...prev, ...next }) })
+  const setSearch = (next: { tab?: string; page?: number; search?: string }) =>
+    navigate({ search: (prev) => ({ ...prev, ...next }) })
 
   const { data, isLoading, isPlaceholderData, error } =
     useQuery<OneCApiResponse>({
@@ -57,9 +55,7 @@ export function OneCStock() {
       queryFn: async () => {
         const params = new URLSearchParams({ tab, page: String(page) })
         if (query) params.set('search', query)
-        const res = await api.get<OneCApiResponse>(
-          `/sales/api/onec/?${params}`
-        )
+        const res = await api.get<OneCApiResponse>(`/sales/api/onec/?${params}`)
         return res.data
       },
       placeholderData: (previousData) => previousData,
@@ -127,10 +123,7 @@ export function OneCStock() {
                   <Skeleton className='h-4 w-40' />
                 )}
               </CardDescription>
-              <form
-                onSubmit={handleSearch}
-                className='flex items-center gap-2'
-              >
+              <form onSubmit={handleSearch} className='flex items-center gap-2'>
                 <div className='relative'>
                   <SearchIcon className='absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground' />
                   <Input
@@ -152,10 +145,8 @@ export function OneCStock() {
                   Ошибка загрузки данных
                 </div>
               ) : isLoading ? (
-                <div className='space-y-2'>
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <Skeleton key={i} className='h-8 w-full' />
-                  ))}
+                <div className='flex items-center justify-center py-16'>
+                  <BrandSpinner size={48} label='Загрузка данных' />
                 </div>
               ) : data && data.rows.length > 0 ? (
                 <div

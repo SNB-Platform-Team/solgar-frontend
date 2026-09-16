@@ -23,9 +23,13 @@ type NavLink = BaseNavItem & {
   items?: never
 }
 
+// A collapsible node's children can themselves be links or further
+// collapsibles — Solgar Intern > Отчет по продажам > Аптечная сеть продаж
+// is three levels deep, so this has to nest recursively rather than
+// bottoming out at a fixed list of leaf links.
 type NavCollapsible = BaseNavItem & {
-  items: (BaseNavItem & { url: LinkProps['to'] | (string & {}) })[]
   url?: never
+  items: NavItem[]
 }
 
 type NavItem = NavCollapsible | NavLink

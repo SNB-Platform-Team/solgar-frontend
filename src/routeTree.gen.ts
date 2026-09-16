@@ -26,15 +26,23 @@ import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authen
 import { Route as ClerkauthRouteRouteImport } from './routes/clerk/(auth)/route'
 import { Route as ClerkAuthenticatedRouteRouteImport } from './routes/clerk/_authenticated/route'
 import { Route as AuthenticatedAppsIndexRouteImport } from './routes/_authenticated/apps/index'
+import { Route as AuthenticatedBitrix24IndexRouteImport } from './routes/_authenticated/bitrix24/index'
+import { Route as AuthenticatedChainReportIndexRouteImport } from './routes/_authenticated/chain-report/index'
 import { Route as AuthenticatedChatsIndexRouteImport } from './routes/_authenticated/chats/index'
+import { Route as AuthenticatedDistributorUploadIndexRouteImport } from './routes/_authenticated/distributor-upload/index'
 import { Route as AuthenticatedDoctorManagerialIndexRouteImport } from './routes/_authenticated/doctor-managerial/index'
 import { Route as AuthenticatedDoctorsIndexRouteImport } from './routes/_authenticated/doctors/index'
+import { Route as AuthenticatedEmployeesIndexRouteImport } from './routes/_authenticated/employees/index'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
+import { Route as AuthenticatedFaqIndexRouteImport } from './routes/_authenticated/faq/index'
 import { Route as AuthenticatedHelpCenterIndexRouteImport } from './routes/_authenticated/help-center/index'
+import { Route as AuthenticatedHrlinkIndexRouteImport } from './routes/_authenticated/hrlink/index'
 import { Route as AuthenticatedOnecStockIndexRouteImport } from './routes/_authenticated/onec-stock/index'
 import { Route as AuthenticatedPharmManagerialIndexRouteImport } from './routes/_authenticated/pharm-managerial/index'
 import { Route as AuthenticatedPharmaciesIndexRouteImport } from './routes/_authenticated/pharmacies/index'
 import { Route as AuthenticatedReportsIndexRouteImport } from './routes/_authenticated/reports/index'
+import { Route as AuthenticatedSalesObsIndexRouteImport } from './routes/_authenticated/sales-obs/index'
+import { Route as AuthenticatedSalesUploadIndexRouteImport } from './routes/_authenticated/sales-upload/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
@@ -129,11 +137,29 @@ const AuthenticatedAppsIndexRoute = AuthenticatedAppsIndexRouteImport.update({
   path: '/apps/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedBitrix24IndexRoute =
+  AuthenticatedBitrix24IndexRouteImport.update({
+    id: '/bitrix24/',
+    path: '/bitrix24/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedChainReportIndexRoute =
+  AuthenticatedChainReportIndexRouteImport.update({
+    id: '/chain-report/',
+    path: '/chain-report/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedChatsIndexRoute = AuthenticatedChatsIndexRouteImport.update({
   id: '/chats/',
   path: '/chats/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDistributorUploadIndexRoute =
+  AuthenticatedDistributorUploadIndexRouteImport.update({
+    id: '/distributor-upload/',
+    path: '/distributor-upload/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDoctorManagerialIndexRoute =
   AuthenticatedDoctorManagerialIndexRouteImport.update({
     id: '/doctor-managerial/',
@@ -146,16 +172,33 @@ const AuthenticatedDoctorsIndexRoute =
     path: '/doctors/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedEmployeesIndexRoute =
+  AuthenticatedEmployeesIndexRouteImport.update({
+    id: '/employees/',
+    path: '/employees/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedErrorsErrorRoute =
   AuthenticatedErrorsErrorRouteImport.update({
     id: '/errors/$error',
     path: '/errors/$error',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedFaqIndexRoute = AuthenticatedFaqIndexRouteImport.update({
+  id: '/faq/',
+  path: '/faq/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedHelpCenterIndexRoute =
   AuthenticatedHelpCenterIndexRouteImport.update({
     id: '/help-center/',
     path: '/help-center/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedHrlinkIndexRoute =
+  AuthenticatedHrlinkIndexRouteImport.update({
+    id: '/hrlink/',
+    path: '/hrlink/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedOnecStockIndexRoute =
@@ -180,6 +223,18 @@ const AuthenticatedReportsIndexRoute =
   AuthenticatedReportsIndexRouteImport.update({
     id: '/reports/',
     path: '/reports/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedSalesObsIndexRoute =
+  AuthenticatedSalesObsIndexRouteImport.update({
+    id: '/sales-obs/',
+    path: '/sales-obs/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedSalesUploadIndexRoute =
+  AuthenticatedSalesUploadIndexRouteImport.update({
+    id: '/sales-upload/',
+    path: '/sales-upload/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedSettingsIndexRoute =
@@ -262,14 +317,22 @@ export interface FileRoutesByFullPath {
   '/clerk/sign-up': typeof ClerkauthSignUpRoute
   '/clerk/user-management': typeof ClerkAuthenticatedUserManagementRoute
   '/apps/': typeof AuthenticatedAppsIndexRoute
+  '/bitrix24/': typeof AuthenticatedBitrix24IndexRoute
+  '/chain-report/': typeof AuthenticatedChainReportIndexRoute
   '/chats/': typeof AuthenticatedChatsIndexRoute
+  '/distributor-upload/': typeof AuthenticatedDistributorUploadIndexRoute
   '/doctor-managerial/': typeof AuthenticatedDoctorManagerialIndexRoute
   '/doctors/': typeof AuthenticatedDoctorsIndexRoute
+  '/employees/': typeof AuthenticatedEmployeesIndexRoute
+  '/faq/': typeof AuthenticatedFaqIndexRoute
   '/help-center/': typeof AuthenticatedHelpCenterIndexRoute
+  '/hrlink/': typeof AuthenticatedHrlinkIndexRoute
   '/onec-stock/': typeof AuthenticatedOnecStockIndexRoute
   '/pharm-managerial/': typeof AuthenticatedPharmManagerialIndexRoute
   '/pharmacies/': typeof AuthenticatedPharmaciesIndexRoute
   '/reports/': typeof AuthenticatedReportsIndexRoute
+  '/sales-obs/': typeof AuthenticatedSalesObsIndexRoute
+  '/sales-upload/': typeof AuthenticatedSalesUploadIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/tasks/': typeof AuthenticatedTasksIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
@@ -296,14 +359,22 @@ export interface FileRoutesByTo {
   '/clerk/sign-up': typeof ClerkauthSignUpRoute
   '/clerk/user-management': typeof ClerkAuthenticatedUserManagementRoute
   '/apps': typeof AuthenticatedAppsIndexRoute
+  '/bitrix24': typeof AuthenticatedBitrix24IndexRoute
+  '/chain-report': typeof AuthenticatedChainReportIndexRoute
   '/chats': typeof AuthenticatedChatsIndexRoute
+  '/distributor-upload': typeof AuthenticatedDistributorUploadIndexRoute
   '/doctor-managerial': typeof AuthenticatedDoctorManagerialIndexRoute
   '/doctors': typeof AuthenticatedDoctorsIndexRoute
+  '/employees': typeof AuthenticatedEmployeesIndexRoute
+  '/faq': typeof AuthenticatedFaqIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
+  '/hrlink': typeof AuthenticatedHrlinkIndexRoute
   '/onec-stock': typeof AuthenticatedOnecStockIndexRoute
   '/pharm-managerial': typeof AuthenticatedPharmManagerialIndexRoute
   '/pharmacies': typeof AuthenticatedPharmaciesIndexRoute
   '/reports': typeof AuthenticatedReportsIndexRoute
+  '/sales-obs': typeof AuthenticatedSalesObsIndexRoute
+  '/sales-upload': typeof AuthenticatedSalesUploadIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
@@ -335,14 +406,22 @@ export interface FileRoutesById {
   '/clerk/(auth)/sign-up': typeof ClerkauthSignUpRoute
   '/clerk/_authenticated/user-management': typeof ClerkAuthenticatedUserManagementRoute
   '/_authenticated/apps/': typeof AuthenticatedAppsIndexRoute
+  '/_authenticated/bitrix24/': typeof AuthenticatedBitrix24IndexRoute
+  '/_authenticated/chain-report/': typeof AuthenticatedChainReportIndexRoute
   '/_authenticated/chats/': typeof AuthenticatedChatsIndexRoute
+  '/_authenticated/distributor-upload/': typeof AuthenticatedDistributorUploadIndexRoute
   '/_authenticated/doctor-managerial/': typeof AuthenticatedDoctorManagerialIndexRoute
   '/_authenticated/doctors/': typeof AuthenticatedDoctorsIndexRoute
+  '/_authenticated/employees/': typeof AuthenticatedEmployeesIndexRoute
+  '/_authenticated/faq/': typeof AuthenticatedFaqIndexRoute
   '/_authenticated/help-center/': typeof AuthenticatedHelpCenterIndexRoute
+  '/_authenticated/hrlink/': typeof AuthenticatedHrlinkIndexRoute
   '/_authenticated/onec-stock/': typeof AuthenticatedOnecStockIndexRoute
   '/_authenticated/pharm-managerial/': typeof AuthenticatedPharmManagerialIndexRoute
   '/_authenticated/pharmacies/': typeof AuthenticatedPharmaciesIndexRoute
   '/_authenticated/reports/': typeof AuthenticatedReportsIndexRoute
+  '/_authenticated/sales-obs/': typeof AuthenticatedSalesObsIndexRoute
+  '/_authenticated/sales-upload/': typeof AuthenticatedSalesUploadIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
@@ -372,14 +451,22 @@ export interface FileRouteTypes {
     | '/clerk/sign-up'
     | '/clerk/user-management'
     | '/apps/'
+    | '/bitrix24/'
+    | '/chain-report/'
     | '/chats/'
+    | '/distributor-upload/'
     | '/doctor-managerial/'
     | '/doctors/'
+    | '/employees/'
+    | '/faq/'
     | '/help-center/'
+    | '/hrlink/'
     | '/onec-stock/'
     | '/pharm-managerial/'
     | '/pharmacies/'
     | '/reports/'
+    | '/sales-obs/'
+    | '/sales-upload/'
     | '/settings/'
     | '/tasks/'
     | '/users/'
@@ -406,14 +493,22 @@ export interface FileRouteTypes {
     | '/clerk/sign-up'
     | '/clerk/user-management'
     | '/apps'
+    | '/bitrix24'
+    | '/chain-report'
     | '/chats'
+    | '/distributor-upload'
     | '/doctor-managerial'
     | '/doctors'
+    | '/employees'
+    | '/faq'
     | '/help-center'
+    | '/hrlink'
     | '/onec-stock'
     | '/pharm-managerial'
     | '/pharmacies'
     | '/reports'
+    | '/sales-obs'
+    | '/sales-upload'
     | '/settings'
     | '/tasks'
     | '/users'
@@ -444,14 +539,22 @@ export interface FileRouteTypes {
     | '/clerk/(auth)/sign-up'
     | '/clerk/_authenticated/user-management'
     | '/_authenticated/apps/'
+    | '/_authenticated/bitrix24/'
+    | '/_authenticated/chain-report/'
     | '/_authenticated/chats/'
+    | '/_authenticated/distributor-upload/'
     | '/_authenticated/doctor-managerial/'
     | '/_authenticated/doctors/'
+    | '/_authenticated/employees/'
+    | '/_authenticated/faq/'
     | '/_authenticated/help-center/'
+    | '/_authenticated/hrlink/'
     | '/_authenticated/onec-stock/'
     | '/_authenticated/pharm-managerial/'
     | '/_authenticated/pharmacies/'
     | '/_authenticated/reports/'
+    | '/_authenticated/sales-obs/'
+    | '/_authenticated/sales-upload/'
     | '/_authenticated/settings/'
     | '/_authenticated/tasks/'
     | '/_authenticated/users/'
@@ -593,11 +696,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/bitrix24/': {
+      id: '/_authenticated/bitrix24/'
+      path: '/bitrix24'
+      fullPath: '/bitrix24/'
+      preLoaderRoute: typeof AuthenticatedBitrix24IndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/chain-report/': {
+      id: '/_authenticated/chain-report/'
+      path: '/chain-report'
+      fullPath: '/chain-report/'
+      preLoaderRoute: typeof AuthenticatedChainReportIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/chats/': {
       id: '/_authenticated/chats/'
       path: '/chats'
       fullPath: '/chats/'
       preLoaderRoute: typeof AuthenticatedChatsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/distributor-upload/': {
+      id: '/_authenticated/distributor-upload/'
+      path: '/distributor-upload'
+      fullPath: '/distributor-upload/'
+      preLoaderRoute: typeof AuthenticatedDistributorUploadIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/doctor-managerial/': {
@@ -614,6 +738,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDoctorsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/employees/': {
+      id: '/_authenticated/employees/'
+      path: '/employees'
+      fullPath: '/employees/'
+      preLoaderRoute: typeof AuthenticatedEmployeesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/errors/$error': {
       id: '/_authenticated/errors/$error'
       path: '/errors/$error'
@@ -621,11 +752,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedErrorsErrorRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/faq/': {
+      id: '/_authenticated/faq/'
+      path: '/faq'
+      fullPath: '/faq/'
+      preLoaderRoute: typeof AuthenticatedFaqIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/help-center/': {
       id: '/_authenticated/help-center/'
       path: '/help-center'
       fullPath: '/help-center/'
       preLoaderRoute: typeof AuthenticatedHelpCenterIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/hrlink/': {
+      id: '/_authenticated/hrlink/'
+      path: '/hrlink'
+      fullPath: '/hrlink/'
+      preLoaderRoute: typeof AuthenticatedHrlinkIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/onec-stock/': {
@@ -654,6 +799,20 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports/'
       preLoaderRoute: typeof AuthenticatedReportsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/sales-obs/': {
+      id: '/_authenticated/sales-obs/'
+      path: '/sales-obs'
+      fullPath: '/sales-obs/'
+      preLoaderRoute: typeof AuthenticatedSalesObsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/sales-upload/': {
+      id: '/_authenticated/sales-upload/'
+      path: '/sales-upload'
+      fullPath: '/sales-upload/'
+      preLoaderRoute: typeof AuthenticatedSalesUploadIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/settings/': {
@@ -757,14 +916,22 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedAppsIndexRoute: typeof AuthenticatedAppsIndexRoute
+  AuthenticatedBitrix24IndexRoute: typeof AuthenticatedBitrix24IndexRoute
+  AuthenticatedChainReportIndexRoute: typeof AuthenticatedChainReportIndexRoute
   AuthenticatedChatsIndexRoute: typeof AuthenticatedChatsIndexRoute
+  AuthenticatedDistributorUploadIndexRoute: typeof AuthenticatedDistributorUploadIndexRoute
   AuthenticatedDoctorManagerialIndexRoute: typeof AuthenticatedDoctorManagerialIndexRoute
   AuthenticatedDoctorsIndexRoute: typeof AuthenticatedDoctorsIndexRoute
+  AuthenticatedEmployeesIndexRoute: typeof AuthenticatedEmployeesIndexRoute
+  AuthenticatedFaqIndexRoute: typeof AuthenticatedFaqIndexRoute
   AuthenticatedHelpCenterIndexRoute: typeof AuthenticatedHelpCenterIndexRoute
+  AuthenticatedHrlinkIndexRoute: typeof AuthenticatedHrlinkIndexRoute
   AuthenticatedOnecStockIndexRoute: typeof AuthenticatedOnecStockIndexRoute
   AuthenticatedPharmManagerialIndexRoute: typeof AuthenticatedPharmManagerialIndexRoute
   AuthenticatedPharmaciesIndexRoute: typeof AuthenticatedPharmaciesIndexRoute
   AuthenticatedReportsIndexRoute: typeof AuthenticatedReportsIndexRoute
+  AuthenticatedSalesObsIndexRoute: typeof AuthenticatedSalesObsIndexRoute
+  AuthenticatedSalesUploadIndexRoute: typeof AuthenticatedSalesUploadIndexRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
 }
@@ -774,16 +941,25 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedAppsIndexRoute: AuthenticatedAppsIndexRoute,
+  AuthenticatedBitrix24IndexRoute: AuthenticatedBitrix24IndexRoute,
+  AuthenticatedChainReportIndexRoute: AuthenticatedChainReportIndexRoute,
   AuthenticatedChatsIndexRoute: AuthenticatedChatsIndexRoute,
+  AuthenticatedDistributorUploadIndexRoute:
+    AuthenticatedDistributorUploadIndexRoute,
   AuthenticatedDoctorManagerialIndexRoute:
     AuthenticatedDoctorManagerialIndexRoute,
   AuthenticatedDoctorsIndexRoute: AuthenticatedDoctorsIndexRoute,
+  AuthenticatedEmployeesIndexRoute: AuthenticatedEmployeesIndexRoute,
+  AuthenticatedFaqIndexRoute: AuthenticatedFaqIndexRoute,
   AuthenticatedHelpCenterIndexRoute: AuthenticatedHelpCenterIndexRoute,
+  AuthenticatedHrlinkIndexRoute: AuthenticatedHrlinkIndexRoute,
   AuthenticatedOnecStockIndexRoute: AuthenticatedOnecStockIndexRoute,
   AuthenticatedPharmManagerialIndexRoute:
     AuthenticatedPharmManagerialIndexRoute,
   AuthenticatedPharmaciesIndexRoute: AuthenticatedPharmaciesIndexRoute,
   AuthenticatedReportsIndexRoute: AuthenticatedReportsIndexRoute,
+  AuthenticatedSalesObsIndexRoute: AuthenticatedSalesObsIndexRoute,
+  AuthenticatedSalesUploadIndexRoute: AuthenticatedSalesUploadIndexRoute,
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
 }

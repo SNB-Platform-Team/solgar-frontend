@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { useCountryLock } from '@/hooks/use-country-lock'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -21,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { BrandSpinner } from '@/components/brand-spinner'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -90,6 +92,12 @@ export function PharmManagerial() {
   const setFilter = (key: keyof PharmManagerialFilters, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: value }))
 
+  // Country access is per-user — everyone but an admin is pinned to their
+  // own country and can't change it (see useCountryLock).
+  const countryLock = useCountryLock()
+  const locked = countryLock.locked
+  const effectiveCountry = locked ? countryLock.userCountry : filters.country
+
   const { data, isLoading, isFetching, error } =
     useQuery<PharmManagerialResponse>({
       queryKey: [
@@ -131,7 +139,10 @@ export function PharmManagerial() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setCommitted({ run: true, filters })
+    setCommitted({
+      run: true,
+      filters: { ...filters, country: effectiveCountry },
+    })
   }
 
   const report = data?.report ?? null
@@ -152,9 +163,7 @@ export function PharmManagerial() {
           <h1 className='text-2xl font-bold tracking-tight'>
             Экран администрирования аптек
           </h1>
-          <p className='text-muted-foreground'>
-            Группировка и подсчёт аптек
-          </p>
+          <p className='text-muted-foreground'>Группировка и подсчёт аптек</p>
         </div>
 
         <Card className='mb-4'>
@@ -227,9 +236,10 @@ export function PharmManagerial() {
                 <div className='space-y-1.5'>
                   <Label>Страна</Label>
                   <Input
-                    value={filters.country}
+                    value={effectiveCountry}
                     onChange={(e) => setFilter('country', e.target.value)}
                     placeholder='Страна'
+                    disabled={locked}
                   />
                 </div>
 
@@ -313,10 +323,8 @@ export function PharmManagerial() {
                 {data?.error || 'Ошибка загрузки данных'}
               </div>
             ) : showSkeleton ? (
-              <div className='space-y-2'>
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <Skeleton key={i} className='h-8 w-full' />
-                ))}
+              <div className='flex items-center justify-center py-16'>
+                <BrandSpinner size={48} label='Загрузка данных' />
               </div>
             ) : report && report.rows.length > 0 ? (
               <div

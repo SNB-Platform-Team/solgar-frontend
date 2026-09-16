@@ -13,6 +13,7 @@ import {
   CommandSeparator,
 } from '@/components/ui/command'
 import { sidebarData } from './layout/data/sidebar-data'
+import { flattenNavItems } from './layout/nav-utils'
 import { ScrollArea } from './ui/scroll-area'
 
 export function CommandMenu() {
@@ -53,10 +54,15 @@ export function CommandMenu() {
                     </CommandItem>
                   )
 
-                return navItem.items?.map((subItem, i) => (
+                // A group can nest further groups (e.g. Solgar Intern >
+                // Отчет по продажам > ...), so flatten to leaf pages with
+                // their full breadcrumb rather than assuming one level.
+                return flattenNavItems(navItem.items ?? [], [
+                  navItem.title,
+                ]).map(({ path, item: subItem }, i) => (
                   <CommandItem
-                    key={`${navItem.title}-${subItem.url}-${i}`}
-                    value={`${navItem.title}-${subItem.url}`}
+                    key={`${path.join('-')}-${subItem.url}-${i}`}
+                    value={`${path.join('-')}-${subItem.url}`}
                     onSelect={() => {
                       runCommand(() => navigate({ to: subItem.url }))
                     }}
@@ -64,7 +70,7 @@ export function CommandMenu() {
                     <div className='flex size-4 items-center justify-center'>
                       <ArrowRight className='size-2 text-muted-foreground/80' />
                     </div>
-                    {navItem.title} <ChevronRight /> {subItem.title}
+                    {path.join(' / ')} <ChevronRight /> {subItem.title}
                   </CommandItem>
                 ))
               })}

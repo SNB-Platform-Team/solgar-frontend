@@ -12,8 +12,8 @@ export function Analytics() {
     <div className='space-y-4'>
       <Card>
         <CardHeader>
-          <CardTitle>Обзор продаж</CardTitle>
-          <CardDescription>Заказы и активные аптеки за неделю</CardDescription>
+          <CardTitle>Продажи по месяцам</CardTitle>
+          <CardDescription>Динамика продаж, шт.</CardDescription>
         </CardHeader>
         <CardContent className='px-6'>
           <AnalyticsChart />

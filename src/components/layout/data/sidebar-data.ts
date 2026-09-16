@@ -1,11 +1,23 @@
 import {
+  BarChart,
+  Building,
   Building2,
-  ClipboardCheck,
   ClipboardList,
+  Database,
   FileBarChart,
+  HelpCircle,
   LayoutDashboard,
+  Link2,
+  MessageCircle,
+  Package,
+  Settings2,
   Stethoscope,
   Store,
+  Table2,
+  TrendingUp,
+  Truck,
+  Upload,
+  Users,
   Warehouse,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
@@ -28,39 +40,105 @@ export const sidebarData: SidebarData = {
           icon: LayoutDashboard,
         },
         {
-          title: '1C - Склад',
-          url: '/onec-stock',
-          icon: Warehouse,
+          title: 'Организация',
+          icon: Building,
+          items: [
+            {
+              title: 'Сотрудники',
+              url: '/employees',
+              icon: Users,
+            },
+          ],
         },
         {
-          title: 'Аптеки',
-          url: '/pharmacies',
-          icon: Store,
+          title: 'Solgar Intern',
+          icon: Package,
+          items: [
+            {
+              title: 'Отчет по продажам',
+              icon: FileBarChart,
+              items: [
+                {
+                  title: 'Аптечная сеть продаж',
+                  url: '/chain-report',
+                  icon: BarChart,
+                },
+                {
+                  title: 'Просмотр Сток и Продажа',
+                  url: '/sales-obs',
+                  icon: TrendingUp,
+                },
+                {
+                  title: 'Загрузка продаж',
+                  url: '/sales-upload',
+                  icon: Upload,
+                },
+                {
+                  title: 'Дистрибьюторская нагрузка',
+                  url: '/distributor-upload',
+                  icon: Truck,
+                },
+              ],
+            },
+            {
+              title: 'База данных',
+              icon: Table2,
+              items: [
+                {
+                  title: 'Аптеки',
+                  url: '/pharmacies',
+                  icon: Store,
+                },
+                {
+                  title: 'Врачи',
+                  url: '/doctors',
+                  icon: Stethoscope,
+                },
+              ],
+            },
+            {
+              title: 'Административные экраны',
+              icon: Settings2,
+              items: [
+                {
+                  title: 'Экран администрирования аптек',
+                  url: '/pharm-managerial',
+                  icon: Building2,
+                },
+                {
+                  title: 'Экран администрирования врача',
+                  url: '/doctor-managerial',
+                  icon: ClipboardList,
+                },
+              ],
+            },
+          ],
         },
         {
-          title: 'Аптеки — Отчёт',
-          url: '/pharm-managerial',
-          icon: Building2,
+          title: '1C',
+          icon: Database,
+          items: [
+            {
+              title: '1C - Склад',
+              url: '/onec-stock',
+              icon: Warehouse,
+            },
+          ],
         },
         {
-          title: 'Врачи',
-          url: '/doctors',
-          icon: Stethoscope,
+          title: 'HRlink',
+          url: '/hrlink',
+          icon: Link2,
         },
         {
-          title: 'Врачи — Отчёт',
-          url: '/doctor-managerial',
-          icon: ClipboardList,
+          title: 'Битрикс24',
+          url: '/bitrix24',
+          icon: MessageCircle,
         },
         {
-          title: 'Отчёты',
-          url: '/reports',
-          icon: FileBarChart,
-        },
-        {
-          title: 'Согласования',
-          url: '/tasks',
-          icon: ClipboardCheck,
+          title: 'FAQ',
+          url: '/faq',
+          icon: HelpCircle,
         },
       ],
     },

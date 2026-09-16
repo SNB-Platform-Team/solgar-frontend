@@ -1,5 +1,7 @@
+import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Menu, X } from 'lucide-react'
+import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import {
   SidebarMenu,
@@ -9,8 +11,28 @@ import {
 } from '@/components/ui/sidebar'
 import { Button } from '../ui/button'
 
+/** Shape of GET /sales/api/version/ — AllowAny, no session required. */
+interface VersionResponse {
+  version: string
+  commit: string
+  date: string
+}
+
 export function AppTitle() {
   const { setOpenMobile } = useSidebar()
+
+  // Best-effort: a missing/unreachable endpoint just means no version line
+  // renders, never a broken title.
+  const { data: version } = useQuery<VersionResponse>({
+    queryKey: ['app-version'],
+    queryFn: async () => {
+      const res = await api.get<VersionResponse>('/sales/api/version/')
+      return res.data
+    },
+    staleTime: Infinity,
+    retry: false,
+  })
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -25,8 +47,16 @@ export function AppTitle() {
               onClick={() => setOpenMobile(false)}
               className='grid flex-1 text-start text-sm leading-tight'
             >
-              <span className='truncate font-bold'>Solgar</span>
+              <span className='truncate font-bold'>ForteMira</span>
               <span className='truncate text-xs'>Внутренняя платформа</span>
+              {version && (
+                <span className='truncate text-xs text-muted-foreground'>
+                  v{version.version}
+                  {version.commit && (
+                    <span className='opacity-60'> ({version.commit})</span>
+                  )}
+                </span>
+              )}
             </Link>
             <ToggleSidebar />
           </div>

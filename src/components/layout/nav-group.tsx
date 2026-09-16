@@ -26,6 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
+import { flattenNavItems, hasActiveDescendant } from './nav-utils'
 import {
   type NavCollapsible,
   type NavItem,
@@ -88,7 +89,6 @@ function SidebarMenuCollapsible({
   item: NavCollapsible
   href: string
 }) {
-  const { setOpenMobile } = useSidebar()
   return (
     <Collapsible
       asChild
@@ -105,24 +105,70 @@ function SidebarMenuCollapsible({
           </SidebarMenuButton>
         </CollapsibleTrigger>
         <CollapsibleContent className='CollapsibleContent'>
-          <SidebarMenuSub>
-            {item.items.map((subItem) => (
-              <SidebarMenuSubItem key={subItem.title}>
-                <SidebarMenuSubButton
-                  asChild
-                  isActive={checkIsActive(href, subItem)}
-                >
-                  <Link to={subItem.url} onClick={() => setOpenMobile(false)}>
-                    {subItem.icon && <subItem.icon />}
-                    <span>{subItem.title}</span>
-                    {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
-                  </Link>
-                </SidebarMenuSubButton>
-              </SidebarMenuSubItem>
-            ))}
-          </SidebarMenuSub>
+          <NavSubTree items={item.items} href={href} />
         </CollapsibleContent>
       </SidebarMenuItem>
+    </Collapsible>
+  )
+}
+
+// Renders one indentation level of sub-items — a link becomes a plain
+// entry, a further-nested group becomes its own collapsible, recursing as
+// deep as the data goes (Solgar Intern > Отчет по продажам > ... is two
+// levels of this stacked on top of each other).
+function NavSubTree({ items, href }: { items: NavItem[]; href: string }) {
+  const { setOpenMobile } = useSidebar()
+  return (
+    <SidebarMenuSub>
+      {items.map((item) => {
+        if (!item.items)
+          return (
+            <SidebarMenuSubItem key={item.title}>
+              <SidebarMenuSubButton
+                asChild
+                isActive={checkIsActive(href, item)}
+              >
+                <Link to={item.url} onClick={() => setOpenMobile(false)}>
+                  {item.icon && <item.icon />}
+                  <span>{item.title}</span>
+                  {item.badge && <NavBadge>{item.badge}</NavBadge>}
+                </Link>
+              </SidebarMenuSubButton>
+            </SidebarMenuSubItem>
+          )
+
+        return <NavSubCollapsible key={item.title} item={item} href={href} />
+      })}
+    </SidebarMenuSub>
+  )
+}
+
+function NavSubCollapsible({
+  item,
+  href,
+}: {
+  item: NavCollapsible
+  href: string
+}) {
+  return (
+    <Collapsible
+      asChild
+      defaultOpen={checkIsActive(href, item, true)}
+      className='group/collapsible'
+    >
+      <SidebarMenuSubItem>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuSubButton>
+            {item.icon && <item.icon />}
+            <span>{item.title}</span>
+            {item.badge && <NavBadge>{item.badge}</NavBadge>}
+            <ChevronRight className='ms-auto size-4 shrink-0 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 rtl:rotate-180' />
+          </SidebarMenuSubButton>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <NavSubTree items={item.items} href={href} />
+        </CollapsibleContent>
+      </SidebarMenuSubItem>
     </Collapsible>
   )
 }
@@ -134,6 +180,11 @@ function SidebarMenuCollapsedDropdown({
   item: NavCollapsible
   href: string
 }) {
+  // The icon-only collapsed sidebar has no room for a nested flyout, so a
+  // multi-level group (e.g. Solgar Intern) is shown flattened to its leaf
+  // pages instead of mirroring the full tree.
+  const leaves = flattenNavItems(item.items)
+
   return (
     <SidebarMenuItem>
       <DropdownMenu>
@@ -153,14 +204,18 @@ function SidebarMenuCollapsedDropdown({
             {item.title} {item.badge ? `(${item.badge})` : ''}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {item.items.map((sub) => (
+          {leaves.map(({ path, item: sub }) => (
             <DropdownMenuItem key={`${sub.title}-${sub.url}`} asChild>
               <Link
                 to={sub.url}
                 className={`${checkIsActive(href, sub) ? 'bg-secondary' : ''}`}
               >
                 {sub.icon && <sub.icon />}
-                <span className='max-w-52 text-wrap'>{sub.title}</span>
+                <span className='max-w-52 text-wrap'>
+                  {path.length > 0
+                    ? `${path.join(' / ')} / ${sub.title}`
+                    : sub.title}
+                </span>
                 {sub.badge && (
                   <span className='ms-auto text-xs'>{sub.badge}</span>
                 )}
@@ -177,7 +232,7 @@ function checkIsActive(href: string, item: NavItem, mainNav = false) {
   return (
     href === item.url || // /endpint?search=param
     href.split('?')[0] === item.url || // endpoint
-    !!item?.items?.filter((i) => i.url === href).length || // if child nav is active
+    hasActiveDescendant(item, href) || // if a descendant nav link is active, at any depth
     (mainNav &&
       href.split('/')[1] !== '' &&
       href.split('/')[1] === item?.url?.split('/')[1])
