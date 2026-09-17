@@ -127,6 +127,19 @@ export interface PharmacyMutationResponse {
 }
 
 /**
+ * Shape of POST /sales/api/pharmacy/bulk-save/ — {rows: [...
+ * PharmacyFormValues payloads]} in, one DB write per row out (routed to the
+ * SOLGAR/NATURES BOUNTY/OBF table by each row's own `brand`). Mirrors the
+ * Java client's Добавить аптека/Сохранить flow — same convention as
+ * Doctor Entry's DoctorBulkSaveResponse.
+ */
+export interface PharmacyBulkSaveResponse {
+  created: number
+  updated: number
+  error?: string
+}
+
+/**
  * Shape of POST /sales/api/doctor/geocode/ (DaData-backed) — same endpoint
  * Doctor Entry uses, {address} in, address components + coordinates out.
  * `error` is set (with every other field absent) when the address didn't

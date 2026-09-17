@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Search as SearchIcon,
+  X,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -54,8 +55,8 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import {
   type PharmacyApiResponse,
+  type PharmacyBulkSaveResponse,
   type PharmacyCascadeOptions,
-  type PharmacyCreateResponse,
   type PharmacyDetailResponse,
   type PharmacyFilterOptions,
   type PharmacyFormValues,
@@ -349,6 +350,12 @@ export function Pharmacies() {
   const [formNotice, setFormNotice] = useState<string | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
+  // Staged-but-not-saved pharmacies — Добавить аптека pushes the current
+  // form here instead of hitting the API; Сохранить flushes all of them to
+  // the backend in one bulk-save request, each row routed to its own
+  // brand's table. Mirrors Doctor Entry's Добавить/Сохранить flow.
+  const [pendingRows, setPendingRows] = useState<PharmacyFormValues[]>([])
+
   const setField = <K extends keyof PharmacyFormValues>(
     key: K,
     value: PharmacyFormValues[K]
@@ -358,6 +365,15 @@ export function Pharmacies() {
     setForm(DEFAULT_PHARMACY_FORM)
     setEditingId(null)
     setFormError(null)
+  }
+
+  const removePendingRow = (index: number) =>
+    setPendingRows((prev) => prev.filter((_, i) => i !== index))
+
+  const handleClearAll = () => {
+    resetForm()
+    setPendingRows([])
+    setFormNotice(null)
   }
 
   // Компания drives every brand-scoped dropdown below (Страна included) —
@@ -565,12 +581,15 @@ export function Pharmacies() {
     },
   })
 
-  const createMutation = useMutation({
+  // Сохранить — flushes every staged (Добавить аптека'd) row to the
+  // backend in one request, each routed to its own brand's table
+  // server-side. {rows: [...]} in, {created, updated} out.
+  const bulkSaveMutation = useMutation({
     mutationFn: async () => {
-      const payload = buildPharmacyPayload({ ...form, country: formCountry })
-      const res = await api.post<PharmacyCreateResponse>(
-        '/sales/api/pharmacy/create/',
-        payload
+      const rows = pendingRows.map((row) => buildPharmacyPayload(row))
+      const res = await api.post<PharmacyBulkSaveResponse>(
+        '/sales/api/pharmacy/bulk-save/',
+        { rows }
       )
       return res.data
     },
@@ -579,8 +598,10 @@ export function Pharmacies() {
         setFormError(data.error)
         return
       }
-      setFormNotice('Аптека добавлена')
-      resetForm()
+      setFormNotice(
+        `Сохранено: добавлено ${data.created}, обновлено ${data.updated}`
+      )
+      setPendingRows([])
       queryClient.invalidateQueries({ queryKey: ['pharmacies'] })
     },
   })
@@ -628,7 +649,10 @@ export function Pharmacies() {
     },
   })
 
-  const handleCreate = (e: React.FormEvent) => {
+  // Добавить аптека — stages the form as a not-yet-saved row instead of
+  // calling the API, and clears the form for the next pharmacy. Сохранить
+  // (below) is what actually writes staged rows to the DB.
+  const handleAdd = (e: React.FormEvent) => {
     e.preventDefault()
     setFormNotice(null)
     if (!form.pharmacy_no.trim()) {
@@ -636,7 +660,14 @@ export function Pharmacies() {
       return
     }
     setFormError(null)
-    createMutation.mutate()
+    setPendingRows((prev) => [...prev, { ...form, country: formCountry }])
+    resetForm()
+  }
+
+  const handleSaveAll = () => {
+    setFormNotice(null)
+    setFormError(null)
+    bulkSaveMutation.mutate()
   }
 
   const handleUpdate = () => {
@@ -669,9 +700,9 @@ export function Pharmacies() {
   const formBusy =
     detailMutation.isPending ||
     geocodeMutation.isPending ||
-    createMutation.isPending ||
     updateMutation.isPending ||
-    deleteMutation.isPending
+    deleteMutation.isPending ||
+    bulkSaveMutation.isPending
 
   return (
     <>
@@ -699,7 +730,7 @@ export function Pharmacies() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleCreate} className='space-y-6'>
+            <form onSubmit={handleAdd} className='space-y-6'>
               <fieldset disabled={formBusy} className='space-y-6'>
                 <div className='space-y-3'>
                   <h3 className='text-sm font-semibold text-muted-foreground'>
@@ -1024,25 +1055,58 @@ export function Pharmacies() {
                       </Button>
                     </div>
                     <p className='text-xs text-muted-foreground'>
-                      Заполняет point_x/point_y, Улицу, Дом, Город,
-                      Область/Регион, код страны и тип здания ниже — по
-                      найденному адресу; сами поля остаются редактируемыми
-                      вручную.
+                      Единственное редактируемое поле здесь. Заполняет
+                      Официальный адрес, Улицу, Дом, Область, Подрайон,
+                      point_x/point_y, код страны и тип здания ниже по
+                      найденному адресу — эти поля недоступны для ручного
+                      ввода и берутся только из результата геокодирования
+                      (DaData).
                     </p>
                   </div>
                   <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+                    <div className='space-y-1.5 lg:col-span-3'>
+                      <Label>Официальный адрес</Label>
+                      <Input
+                        value={form.full_address}
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
+                      />
+                    </div>
                     <div className='space-y-1.5'>
                       <Label>Улица</Label>
                       <Input
                         value={form.street}
-                        onChange={(e) => setField('street', e.target.value)}
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
                       />
                     </div>
                     <div className='space-y-1.5'>
                       <Label>Домашний номер</Label>
                       <Input
                         value={form.homenumber}
-                        onChange={(e) => setField('homenumber', e.target.value)}
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
+                      />
+                    </div>
+                    <div className='space-y-1.5'>
+                      <Label>Область (Administrative)</Label>
+                      <Input
+                        value={form.area}
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
+                      />
+                    </div>
+                    <div className='space-y-1.5'>
+                      <Label>Подрайон (Sub-administrative)</Label>
+                      <Input
+                        value={form.region}
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
                       />
                     </div>
                     <div className='space-y-1.5'>
@@ -1051,7 +1115,9 @@ export function Pharmacies() {
                         type='number'
                         step='any'
                         value={form.point_x}
-                        onChange={(e) => setField('point_x', e.target.value)}
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
                       />
                     </div>
                     <div className='space-y-1.5'>
@@ -1060,25 +1126,27 @@ export function Pharmacies() {
                         type='number'
                         step='any'
                         value={form.point_y}
-                        onChange={(e) => setField('point_y', e.target.value)}
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
                       />
                     </div>
                     <div className='space-y-1.5'>
                       <Label>Код страны</Label>
                       <Input
                         value={form.country_code}
-                        onChange={(e) =>
-                          setField('country_code', e.target.value)
-                        }
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
                       />
                     </div>
                     <div className='space-y-1.5'>
                       <Label>Тип здания</Label>
                       <Input
                         value={form.building_type}
-                        onChange={(e) =>
-                          setField('building_type', e.target.value)
-                        }
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
                       />
                     </div>
                   </div>
@@ -1103,7 +1171,7 @@ export function Pharmacies() {
                 <Button
                   type='button'
                   variant='ghost'
-                  onClick={resetForm}
+                  onClick={handleClearAll}
                   disabled={formBusy}
                 >
                   Очистить
@@ -1127,13 +1195,74 @@ export function Pharmacies() {
                   Обновить
                 </Button>
                 <Button type='submit' disabled={isEditing || formBusy}>
-                  {createMutation.isPending && <BrandSpinner size={16} />}
                   Добавить аптека
+                </Button>
+                <Button
+                  type='button'
+                  onClick={handleSaveAll}
+                  disabled={pendingRows.length === 0 || formBusy}
+                >
+                  {bulkSaveMutation.isPending && <BrandSpinner size={16} />}
+                  Сохранить ({pendingRows.length})
                 </Button>
               </div>
             </form>
           </CardContent>
         </Card>
+
+        {/* ===== Несохранённые записи — staged by Добавить аптека, written
+            to the DB together by Сохранить ===== */}
+        {pendingRows.length > 0 && (
+          <Card className='mb-4 border-amber-500/40'>
+            <CardHeader>
+              <CardTitle className='text-base'>
+                Несохранённые записи ({pendingRows.length})
+              </CardTitle>
+              <CardDescription>
+                Добавлены локально — нажмите «Сохранить» в карточке выше,
+                чтобы записать их в базу
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className='overflow-x-auto rounded-md border'>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Компания</TableHead>
+                      <TableHead>Номер аптеки</TableHead>
+                      <TableHead>Сеть</TableHead>
+                      <TableHead>Город</TableHead>
+                      <TableHead>Адрес</TableHead>
+                      <TableHead className='w-10' />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingRows.map((row, idx) => (
+                      <TableRow key={idx} className='bg-amber-500/10'>
+                        <TableCell>{row.brand}</TableCell>
+                        <TableCell>{row.pharmacy_no}</TableCell>
+                        <TableCell>{row.group_company}</TableCell>
+                        <TableCell>{row.city}</TableCell>
+                        <TableCell>{row.pharmacy_address}</TableCell>
+                        <TableCell>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            size='icon'
+                            onClick={() => removePendingRow(idx)}
+                            disabled={formBusy}
+                          >
+                            <X className='size-4' />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <ConfirmDialog
           open={deleteConfirmOpen}

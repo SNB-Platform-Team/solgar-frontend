@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Search as SearchIcon,
+  X,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -54,8 +55,8 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import {
   type DoctorApiResponse,
+  type DoctorBulkSaveResponse,
   type DoctorCascadeOptions,
-  type DoctorCreateResponse,
   type DoctorDetailResponse,
   type DoctorFilterOptions,
   type DoctorGeocodeResponse,
@@ -76,12 +77,17 @@ const ALL = '__ALL__'
 // legitimate value there too, just without a "Все" label attached to it.
 const EMPTY = '__EMPTY__'
 
-// Fixed option lists for the three enum-like form fields below — no API
-// backs these, the values are constant. FormSelect already offers its own
-// blank "—" item, so none of these lists repeats "" itself.
+// Fixed option lists for the enum-like form fields below — no API backs
+// these, the values are constant. FormSelect already offers its own blank
+// "—" item, so none of these lists repeats "" itself.
 const CATEGORY_OPTIONS = ['A+', 'A', 'B', 'C']
 const ACTIVENESS_OPTIONS = ['Актив', 'Не Актив', 'в процессе']
 const CLINIC_STATUS_OPTIONS = ['GOLD', 'PLATINUM', 'SILVER']
+
+// The entry form's own Компания — same two brands the Java client offers
+// for a doctor card (no "OBF", unlike the Pharmacy Entry form's).
+const BRAND_OPTIONS = ['SOLGAR', 'NATURES BOUNTY']
+const DEFAULT_FORM_BRAND = 'SOLGAR'
 
 interface DoctorsSearch {
   brand?: string
@@ -97,6 +103,7 @@ interface DoctorsSearch {
 }
 
 const DEFAULT_DOCTOR_FORM: DoctorFormValues = {
+  brand: DEFAULT_FORM_BRAND,
   doctor_name: '',
   medrep: '',
   category: '',
@@ -310,6 +317,12 @@ export function Doctors() {
   const [formNotice, setFormNotice] = useState<string | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
+  // Staged-but-not-saved doctors — Добавить pushes the current form here
+  // instead of hitting the API; Сохранить flushes all of them to the
+  // backend in one bulk-save request. Mirrors the Java client's two-stage
+  // Добавить/Сохранить flow (add several cards, then commit them together).
+  const [pendingRows, setPendingRows] = useState<DoctorFormValues[]>([])
+
   const setField = <K extends keyof DoctorFormValues>(
     key: K,
     value: DoctorFormValues[K]
@@ -319,6 +332,15 @@ export function Doctors() {
     setForm(DEFAULT_DOCTOR_FORM)
     setEditingId(null)
     setFormError(null)
+  }
+
+  const removePendingRow = (index: number) =>
+    setPendingRows((prev) => prev.filter((_, i) => i !== index))
+
+  const handleClearAll = () => {
+    resetForm()
+    setPendingRows([])
+    setFormNotice(null)
   }
 
   // Страна drives Область/Регион/Город in the form too — changing it
@@ -405,6 +427,7 @@ export function Doctors() {
         return
       }
       setForm({
+        brand: data.brand ?? '',
         doctor_name: data.doctor_name ?? '',
         medrep: data.medrep ?? '',
         category: data.category ?? '',
@@ -475,12 +498,15 @@ export function Doctors() {
     },
   })
 
-  const createMutation = useMutation({
+  // Сохранить — flushes every staged (Добавить'd) row to the backend in
+  // one request. The Java client's bulk-save: {rows: [...]} in,
+  // {created, updated} out.
+  const bulkSaveMutation = useMutation({
     mutationFn: async () => {
-      const payload = buildDoctorPayload({ ...form, country: formCountry })
-      const res = await api.post<DoctorCreateResponse>(
-        '/sales/api/doctor/create/',
-        payload
+      const rows = pendingRows.map((row) => buildDoctorPayload(row))
+      const res = await api.post<DoctorBulkSaveResponse>(
+        '/sales/api/doctor/bulk-save/',
+        { rows }
       )
       return res.data
     },
@@ -489,8 +515,10 @@ export function Doctors() {
         setFormError(data.error)
         return
       }
-      setFormNotice('Врач добавлен')
-      resetForm()
+      setFormNotice(
+        `Сохранено: добавлено ${data.created}, обновлено ${data.updated}`
+      )
+      setPendingRows([])
       queryClient.invalidateQueries({ queryKey: ['doctors'] })
     },
   })
@@ -538,7 +566,10 @@ export function Doctors() {
     },
   })
 
-  const handleCreate = (e: React.FormEvent) => {
+  // Добавить — stages the form as a not-yet-saved row instead of calling
+  // the API, and clears the form for the next doctor. Сохранить (below)
+  // is what actually writes staged rows to the DB.
+  const handleAdd = (e: React.FormEvent) => {
     e.preventDefault()
     setFormNotice(null)
     if (!form.doctor_name.trim()) {
@@ -546,7 +577,14 @@ export function Doctors() {
       return
     }
     setFormError(null)
-    createMutation.mutate()
+    setPendingRows((prev) => [...prev, { ...form, country: formCountry }])
+    resetForm()
+  }
+
+  const handleSaveAll = () => {
+    setFormNotice(null)
+    setFormError(null)
+    bulkSaveMutation.mutate()
   }
 
   const handleUpdate = () => {
@@ -579,9 +617,9 @@ export function Doctors() {
   const formBusy =
     detailMutation.isPending ||
     geocodeMutation.isPending ||
-    createMutation.isPending ||
     updateMutation.isPending ||
-    deleteMutation.isPending
+    deleteMutation.isPending ||
+    bulkSaveMutation.isPending
 
   return (
     <>
@@ -609,8 +647,74 @@ export function Doctors() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleCreate} className='space-y-6'>
+            <form onSubmit={handleAdd} className='space-y-6'>
               <fieldset disabled={formBusy} className='space-y-6'>
+                <div className='space-y-3'>
+                  <h3 className='text-sm font-semibold text-muted-foreground'>
+                    Компания и адрес
+                  </h3>
+                  <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+                    <div className='space-y-1.5'>
+                      <Label>Компания</Label>
+                      <FormSelect
+                        value={form.brand}
+                        options={BRAND_OPTIONS}
+                        onChange={(v) => setField('brand', v)}
+                        placeholder='Выберите компанию'
+                      />
+                    </div>
+                    <div className='space-y-1.5'>
+                      <Label>Страна</Label>
+                      <FormSelect
+                        value={formCountry}
+                        options={
+                          locked
+                            ? [countryLock.userCountry]
+                            : (filterOptions?.countries ?? [])
+                        }
+                        disabled={locked}
+                        onChange={setFormCountry}
+                      />
+                    </div>
+                    <div className='space-y-1.5'>
+                      <Label>Область</Label>
+                      <FormSelect
+                        value={form.area}
+                        options={formAreaOptions?.options ?? []}
+                        disabled={!formCountry}
+                        placeholder={
+                          formCountry ? 'Не выбрано' : 'Сначала выберите страну'
+                        }
+                        onChange={setFormArea}
+                      />
+                    </div>
+                    <div className='space-y-1.5'>
+                      <Label>Регион</Label>
+                      <FormSelect
+                        value={form.region}
+                        options={formRegionOptions?.options ?? []}
+                        disabled={!form.area}
+                        placeholder={
+                          form.area ? 'Не выбрано' : 'Сначала выберите область'
+                        }
+                        onChange={setFormRegion}
+                      />
+                    </div>
+                    <div className='space-y-1.5'>
+                      <Label>Город</Label>
+                      <FormSelect
+                        value={form.city}
+                        options={formCityOptions?.options ?? []}
+                        disabled={!form.region}
+                        placeholder={
+                          form.region ? 'Не выбрано' : 'Сначала выберите регион'
+                        }
+                        onChange={(v) => setField('city', v)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div className='space-y-3'>
                   <h3 className='text-sm font-semibold text-muted-foreground'>
                     Доктор
@@ -780,7 +884,7 @@ export function Doctors() {
                         onChange={(e) =>
                           setField('full_address', e.target.value)
                         }
-                        placeholder='Введите адрес для поиска'
+                        placeholder='Введите адрес для поиска (DaData)'
                         className='flex-1'
                       />
                       <Button
@@ -797,74 +901,57 @@ export function Doctors() {
                       </Button>
                     </div>
                     <p className='text-xs text-muted-foreground'>
-                      Заполняет point_x/point_y, Улицу, Дом, Город,
-                      Область/Регион, код страны и тип здания ниже — по
-                      найденному адресу; сами поля остаются редактируемыми
-                      вручную.
+                      Единственное редактируемое поле здесь. Заполняет Улицу,
+                      Дом, Город, Область, Регион, point_x/point_y, код
+                      страны и тип здания ниже по найденному адресу — эти
+                      поля недоступны для ручного ввода и берутся только из
+                      результата геокодирования (DaData).
                     </p>
                   </div>
                   <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
                     <div className='space-y-1.5'>
-                      <Label>Страна</Label>
-                      <FormSelect
-                        value={formCountry}
-                        options={
-                          locked
-                            ? [countryLock.userCountry]
-                            : (filterOptions?.countries ?? [])
-                        }
-                        disabled={locked}
-                        onChange={setFormCountry}
-                      />
-                    </div>
-                    <div className='space-y-1.5'>
-                      <Label>Область</Label>
-                      <FormSelect
-                        value={form.area}
-                        options={formAreaOptions?.options ?? []}
-                        disabled={!formCountry}
-                        placeholder={
-                          formCountry ? 'Не выбрано' : 'Сначала выберите страну'
-                        }
-                        onChange={setFormArea}
-                      />
-                    </div>
-                    <div className='space-y-1.5'>
-                      <Label>Регион</Label>
-                      <FormSelect
-                        value={form.region}
-                        options={formRegionOptions?.options ?? []}
-                        disabled={!form.area}
-                        placeholder={
-                          form.area ? 'Не выбрано' : 'Сначала выберите область'
-                        }
-                        onChange={setFormRegion}
-                      />
-                    </div>
-                    <div className='space-y-1.5'>
-                      <Label>Город</Label>
-                      <FormSelect
-                        value={form.city}
-                        options={formCityOptions?.options ?? []}
-                        disabled={!form.region}
-                        placeholder={
-                          form.region ? 'Не выбрано' : 'Сначала выберите регион'
-                        }
-                        onChange={(v) => setField('city', v)}
-                      />
-                    </div>
-                    <div className='space-y-1.5'>
                       <Label>Улица</Label>
                       <Input
                         value={form.street}
-                        onChange={(e) => setField('street', e.target.value)}
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
                       />
                     </div>
                     <div className='space-y-1.5'>
                       <Label>Домашний номер</Label>
                       <Input
                         value={form.homenumber}
-                        onChange={(e) => setField('homenumber', e.target.value)}
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
+                      />
+                    </div>
+                    <div className='space-y-1.5'>
+                      <Label>Город</Label>
+                      <Input
+                        value={form.city}
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
+                      />
+                    </div>
+                    <div className='space-y-1.5'>
+                      <Label>Область (Administrative)</Label>
+                      <Input
+                        value={form.area}
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
+                      />
+                    </div>
+                    <div className='space-y-1.5'>
+                      <Label>Регион (Sub-administrative)</Label>
+                      <Input
+                        value={form.region}
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
                       />
                     </div>
                     <div className='space-y-1.5'>
@@ -873,7 +960,9 @@ export function Doctors() {
                         type='number'
                         step='any'
                         value={form.point_x}
-                        onChange={(e) => setField('point_x', e.target.value)}
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
                       />
                     </div>
                     <div className='space-y-1.5'>
@@ -882,25 +971,27 @@ export function Doctors() {
                         type='number'
                         step='any'
                         value={form.point_y}
-                        onChange={(e) => setField('point_y', e.target.value)}
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
                       />
                     </div>
                     <div className='space-y-1.5'>
                       <Label>Код страны</Label>
                       <Input
                         value={form.country_code}
-                        onChange={(e) =>
-                          setField('country_code', e.target.value)
-                        }
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
                       />
                     </div>
                     <div className='space-y-1.5'>
                       <Label>Тип здания</Label>
                       <Input
                         value={form.building_type}
-                        onChange={(e) =>
-                          setField('building_type', e.target.value)
-                        }
+                        disabled
+                        readOnly
+                        className='disabled:opacity-70'
                       />
                     </div>
                   </div>
@@ -925,7 +1016,7 @@ export function Doctors() {
                 <Button
                   type='button'
                   variant='ghost'
-                  onClick={resetForm}
+                  onClick={handleClearAll}
                   disabled={formBusy}
                 >
                   Очистить
@@ -949,13 +1040,74 @@ export function Doctors() {
                   Обновить
                 </Button>
                 <Button type='submit' disabled={isEditing || formBusy}>
-                  {createMutation.isPending && <BrandSpinner size={16} />}
                   Добавить
+                </Button>
+                <Button
+                  type='button'
+                  onClick={handleSaveAll}
+                  disabled={pendingRows.length === 0 || formBusy}
+                >
+                  {bulkSaveMutation.isPending && <BrandSpinner size={16} />}
+                  Сохранить ({pendingRows.length})
                 </Button>
               </div>
             </form>
           </CardContent>
         </Card>
+
+        {/* ===== Несохранённые записи — staged by Добавить, written to the
+            DB together by Сохранить ===== */}
+        {pendingRows.length > 0 && (
+          <Card className='mb-4 border-amber-500/40'>
+            <CardHeader>
+              <CardTitle className='text-base'>
+                Несохранённые записи ({pendingRows.length})
+              </CardTitle>
+              <CardDescription>
+                Добавлены локально — нажмите «Сохранить» в карточке выше,
+                чтобы записать их в базу
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className='overflow-x-auto rounded-md border'>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Компания</TableHead>
+                      <TableHead>Доктор</TableHead>
+                      <TableHead>Специальность</TableHead>
+                      <TableHead>Клиника</TableHead>
+                      <TableHead>Город</TableHead>
+                      <TableHead className='w-10' />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingRows.map((row, idx) => (
+                      <TableRow key={idx} className='bg-amber-500/10'>
+                        <TableCell>{row.brand}</TableCell>
+                        <TableCell>{row.doctor_name}</TableCell>
+                        <TableCell>{row.specialty}</TableCell>
+                        <TableCell>{row.clinic_name}</TableCell>
+                        <TableCell>{row.city}</TableCell>
+                        <TableCell>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            size='icon'
+                            onClick={() => removePendingRow(idx)}
+                            disabled={formBusy}
+                          >
+                            <X className='size-4' />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <ConfirmDialog
           open={deleteConfirmOpen}

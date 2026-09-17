@@ -44,6 +44,8 @@ export interface DoctorCascadeOptions {
  */
 export interface DoctorDetail {
   id: string | number
+  // Компания
+  brand: string
   // Доктор
   doctor_name: string
   medrep: string
@@ -106,6 +108,19 @@ export interface DoctorCreateResponse {
 
 /** Shape of POST /sales/api/doctor/update/ and .../delete/ */
 export interface DoctorMutationResponse {
+  error?: string
+}
+
+/**
+ * Shape of POST /sales/api/doctor/bulk-save/ — {rows: [...DoctorFormValues
+ * payloads]} in, one DB write per row out. Mirrors the Java client's
+ * Добавить/Сохранить flow: Добавить stages a row locally (see
+ * PendingDoctorRow in the feature itself), Сохранить sends all staged rows
+ * here in one request.
+ */
+export interface DoctorBulkSaveResponse {
+  created: number
+  updated: number
   error?: string
 }
 
