@@ -26,6 +26,7 @@ export interface DoctorFilterOptions {
   specialties: string[]
   unified_specialties: string[]
   medreps: string[]
+  clinics?: string[]
 }
 
 /** One cascading level — GET filter-options/?level=&country=&area=&region= */

@@ -59,7 +59,11 @@ const COLUMNS: { key: keyof SalesUploadRow; label: string }[] = [
   { key: 'subgroup', label: 'Подгруппа' },
 ]
 
-const NUMERIC_COLUMNS = new Set<keyof SalesUploadRow>(['index', 'count', 'amount'])
+const NUMERIC_COLUMNS = new Set<keyof SalesUploadRow>([
+  'index',
+  'count',
+  'amount',
+])
 
 // Builds the "1 … 4 5 6 … 12" page-number window shown under the table:
 // always the first and last page, plus one page on each side of the
@@ -223,12 +227,50 @@ export function SalesUpload() {
   const handlePreview = (e: React.FormEvent) => {
     e.preventDefault()
     setSavedCount(null)
+
     if (!file || !reportDate || !chainName || !effectiveCountry) {
       setValidationError(
         'Выберите файл и заполните все поля: страна, сеть, дата отчёта.'
       )
       return
     }
+
+    // Dosya adından ay/yıl bilgisini çıkar (örn: AVE_03_2025.xlsx -> ay=03, yıl=2025)
+    const fileDateMatch = file.name.match(/_(\d{2})_(\d{4})\.[^.]+$/)
+    const [fileMonth, fileYear] = fileDateMatch
+      ? [fileDateMatch[1], fileDateMatch[2]]
+      : [null, null]
+
+    // reportDate input'u her zaman yyyy-MM-dd formatında gelir (native date input)
+    const [reportYear, reportMonth, reportDay] = reportDate.split('-')
+
+    const monthYearMatches =
+      fileMonth === reportMonth && fileYear === reportYear
+    const isFirstOfMonth = reportDay === '01'
+
+    if (!fileDateMatch || !monthYearMatches || !isFirstOfMonth) {
+      setValidationError(
+        'Дата введена неверно: проверьте месяц/год в названии файла и убедитесь, что выбрано 1-е число месяца.'
+      )
+      return
+    }
+
+    // ---- YENİ: DOSYA ADI İLE SEÇİLEN AĞ (CHAIN NAME) KONTROLÜ ----
+    // İlk alt çizgiye kadar olan kısmı alır (Örn: "AVE_03_2025.xlsx" -> "AVE")
+    const fileChainName = file.name.split('_')[0]
+
+    // Büyük/küçük harf veya boşluk farklarından dolayı hata oluşmaması için normalize ediyoruz
+    const isChainNameMatching =
+      fileChainName &&
+      fileChainName.trim().toUpperCase() === chainName.trim().toUpperCase()
+
+    if (!isChainNameMatching) {
+      setValidationError(
+        `Ошибка: Выбранная сеть (${chainName}) не совпадает с именем в названии файла (${fileChainName}).`
+      )
+      return
+    }
+
     setValidationError(null)
     setDisplayRows([])
     setDisplayPage(1)

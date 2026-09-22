@@ -22,11 +22,18 @@ export interface PharmManagerialEchoedFilters {
   parameter?: string
   brand?: string
   country?: string
+  district?: string
   region?: string
   city?: string
   chain?: string
+  subchain?: string
+  assortiment?: string
+  pharmacy_type?: string
+  promo?: string
   medrep?: string
   activeness?: string
+  begin?: string
+  end?: string
   [key: string]: string | undefined
 }
 
@@ -43,10 +50,18 @@ export interface PharmManagerialFilters {
   brand: string
   rep_type: string
   parameter: string
+  date_param: string
   country: string
+  district: string
   region: string
   city: string
   chain: string
+  subchain: string
+  assortiment: string
+  pharmacy_type: string
+  promo: string
   medrep: string
   activeness: string
+  begin: string
+  end: string
 }

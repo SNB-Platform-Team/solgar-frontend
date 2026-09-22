@@ -319,6 +319,39 @@ export function DistributorUpload() {
       )
       return
     }
+
+    // ---- KONTROL 1: Dosya adı ile seçilen distribütör eşleşmesi ----
+    // "APTEKA-RU_03_2025.xlsx" -> "APTEKA-RU"
+    const fileDistName = file.name.split('_')[0]
+    const isDistNameMatching =
+      fileDistName &&
+      fileDistName.trim().toUpperCase() === distributor.trim().toUpperCase()
+    if (!isDistNameMatching) {
+      setValidationError(
+        `Ошибка: Выбранный дистрибьютор (${distributor}) не совпадает с именем в названии файла (${fileDistName}).`
+      )
+      return
+    }
+
+    // ---- KONTROL 2: Dosya adındaki ay/yıl ile "Дата с" eşleşmesi + gün 1 ----
+    // Sadece Дата с kontrol edilir, Дата по'ya bakılmaz.
+    const nameParts = file.name.replace(/\.[^/.]+$/, '').split('_')
+    const fileMonth = nameParts[1] // "03"
+    const fileYear = nameParts[2] // "2025"
+
+    // Date input değeri yyyy-MM-dd gelir; timezone kayması olmasın diye string'den parçalıyoruz
+    const [begYear, begMonth, begDay] = beginDate.split('-')
+
+    const isDateMatching =
+      fileMonth === begMonth && fileYear === begYear && begDay === '01'
+
+    if (!isDateMatching) {
+      setValidationError(
+        'Ошибка: Дата "с" не совпадает с датой в названии файла. Проверьте месяц/год и выберите первый день месяца.'
+      )
+      return
+    }
+
     setValidationError(null)
     setDisplayRows([])
     setDisplayPage(1)

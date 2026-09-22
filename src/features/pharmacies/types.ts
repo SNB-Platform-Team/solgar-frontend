@@ -29,11 +29,12 @@ export interface PharmacyFilterOptions {
   types: string[]
   promos: string[]
   marketing_staff: string[]
+  assortiments?: string[]
 }
 
 /** One cascading level — GET filter-options/?brand=&level=&country=&area=&region= */
 export interface PharmacyCascadeOptions {
-  level: 'area' | 'region' | 'city'
+  level: 'area' | 'region' | 'city' | 'subchain'
   options: string[]
 }
 

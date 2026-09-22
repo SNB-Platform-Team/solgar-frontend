@@ -22,6 +22,7 @@ export interface DoctorManagerialEchoedFilters {
   parameter?: string
   brand?: string
   country?: string
+  district?: string
   region?: string
   city?: string
   speciality?: string
@@ -29,6 +30,8 @@ export interface DoctorManagerialEchoedFilters {
   clinic?: string
   medrep?: string
   activeness?: string
+  begin?: string
+  end?: string
   [key: string]: string | undefined
 }
 
@@ -45,7 +48,9 @@ export interface DoctorManagerialFilters {
   brand: string
   rep_type: string
   parameter: string
+  date_param: string
   country: string
+  district: string
   region: string
   city: string
   speciality: string
@@ -53,4 +58,6 @@ export interface DoctorManagerialFilters {
   clinic: string
   medrep: string
   activeness: string
+  begin: string
+  end: string
 }
