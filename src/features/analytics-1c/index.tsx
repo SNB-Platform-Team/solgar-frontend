@@ -10,8 +10,7 @@ import { ThemeSwitch } from '@/components/theme-switch'
 // Falls back to the VM-hosted Superset when unset; change the env var (or
 // this default) when Superset moves to Azure.
 const SUPERSET_DASHBOARD_URL =
-  import.meta.env.VITE_SUPERSET_1C_DASHBOARD_URL ||
-  'http://94.139.254.16:8088/superset/dashboard/1/?standalone=true'
+  import.meta.env.VITE_SUPERSET_1C_DASHBOARD_URL || 'https://sslip.io'
 
 export function Analytics1C() {
   return (
