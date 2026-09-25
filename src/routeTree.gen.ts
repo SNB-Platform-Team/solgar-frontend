@@ -25,6 +25,7 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
 import { Route as ClerkauthRouteRouteImport } from './routes/clerk/(auth)/route'
 import { Route as ClerkAuthenticatedRouteRouteImport } from './routes/clerk/_authenticated/route'
+import { Route as AuthenticatedAnalytics1cIndexRouteImport } from './routes/_authenticated/analytics-1c/index'
 import { Route as AuthenticatedAppsIndexRouteImport } from './routes/_authenticated/apps/index'
 import { Route as AuthenticatedBitrix24IndexRouteImport } from './routes/_authenticated/bitrix24/index'
 import { Route as AuthenticatedChainReportIndexRouteImport } from './routes/_authenticated/chain-report/index'
@@ -132,6 +133,12 @@ const ClerkAuthenticatedRouteRoute = ClerkAuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => ClerkRouteRoute,
 } as any)
+const AuthenticatedAnalytics1cIndexRoute =
+  AuthenticatedAnalytics1cIndexRouteImport.update({
+    id: '/analytics-1c/',
+    path: '/analytics-1c/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAppsIndexRoute = AuthenticatedAppsIndexRouteImport.update({
   id: '/apps/',
   path: '/apps/',
@@ -316,6 +323,7 @@ export interface FileRoutesByFullPath {
   '/clerk/sign-in': typeof ClerkauthSignInRoute
   '/clerk/sign-up': typeof ClerkauthSignUpRoute
   '/clerk/user-management': typeof ClerkAuthenticatedUserManagementRoute
+  '/analytics-1c/': typeof AuthenticatedAnalytics1cIndexRoute
   '/apps/': typeof AuthenticatedAppsIndexRoute
   '/bitrix24/': typeof AuthenticatedBitrix24IndexRoute
   '/chain-report/': typeof AuthenticatedChainReportIndexRoute
@@ -358,6 +366,7 @@ export interface FileRoutesByTo {
   '/clerk/sign-in': typeof ClerkauthSignInRoute
   '/clerk/sign-up': typeof ClerkauthSignUpRoute
   '/clerk/user-management': typeof ClerkAuthenticatedUserManagementRoute
+  '/analytics-1c': typeof AuthenticatedAnalytics1cIndexRoute
   '/apps': typeof AuthenticatedAppsIndexRoute
   '/bitrix24': typeof AuthenticatedBitrix24IndexRoute
   '/chain-report': typeof AuthenticatedChainReportIndexRoute
@@ -405,6 +414,7 @@ export interface FileRoutesById {
   '/clerk/(auth)/sign-in': typeof ClerkauthSignInRoute
   '/clerk/(auth)/sign-up': typeof ClerkauthSignUpRoute
   '/clerk/_authenticated/user-management': typeof ClerkAuthenticatedUserManagementRoute
+  '/_authenticated/analytics-1c/': typeof AuthenticatedAnalytics1cIndexRoute
   '/_authenticated/apps/': typeof AuthenticatedAppsIndexRoute
   '/_authenticated/bitrix24/': typeof AuthenticatedBitrix24IndexRoute
   '/_authenticated/chain-report/': typeof AuthenticatedChainReportIndexRoute
@@ -450,6 +460,7 @@ export interface FileRouteTypes {
     | '/clerk/sign-in'
     | '/clerk/sign-up'
     | '/clerk/user-management'
+    | '/analytics-1c/'
     | '/apps/'
     | '/bitrix24/'
     | '/chain-report/'
@@ -492,6 +503,7 @@ export interface FileRouteTypes {
     | '/clerk/sign-in'
     | '/clerk/sign-up'
     | '/clerk/user-management'
+    | '/analytics-1c'
     | '/apps'
     | '/bitrix24'
     | '/chain-report'
@@ -538,6 +550,7 @@ export interface FileRouteTypes {
     | '/clerk/(auth)/sign-in'
     | '/clerk/(auth)/sign-up'
     | '/clerk/_authenticated/user-management'
+    | '/_authenticated/analytics-1c/'
     | '/_authenticated/apps/'
     | '/_authenticated/bitrix24/'
     | '/_authenticated/chain-report/'
@@ -688,6 +701,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/clerk'
       preLoaderRoute: typeof ClerkAuthenticatedRouteRouteImport
       parentRoute: typeof ClerkRouteRoute
+    }
+    '/_authenticated/analytics-1c/': {
+      id: '/_authenticated/analytics-1c/'
+      path: '/analytics-1c'
+      fullPath: '/analytics-1c/'
+      preLoaderRoute: typeof AuthenticatedAnalytics1cIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/apps/': {
       id: '/_authenticated/apps/'
@@ -915,6 +935,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
+  AuthenticatedAnalytics1cIndexRoute: typeof AuthenticatedAnalytics1cIndexRoute
   AuthenticatedAppsIndexRoute: typeof AuthenticatedAppsIndexRoute
   AuthenticatedBitrix24IndexRoute: typeof AuthenticatedBitrix24IndexRoute
   AuthenticatedChainReportIndexRoute: typeof AuthenticatedChainReportIndexRoute
@@ -940,6 +961,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
+  AuthenticatedAnalytics1cIndexRoute: AuthenticatedAnalytics1cIndexRoute,
   AuthenticatedAppsIndexRoute: AuthenticatedAppsIndexRoute,
   AuthenticatedBitrix24IndexRoute: AuthenticatedBitrix24IndexRoute,
   AuthenticatedChainReportIndexRoute: AuthenticatedChainReportIndexRoute,

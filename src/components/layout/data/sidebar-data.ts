@@ -8,8 +8,10 @@ import {
   HelpCircle,
   LayoutDashboard,
   Link2,
+  LineChart,
   MessageCircle,
   Package,
+  PieChart,
   Settings2,
   Stethoscope,
   Store,
@@ -122,6 +124,17 @@ export const sidebarData: SidebarData = {
               title: '1C - Склад',
               url: '/onec-stock',
               icon: Warehouse,
+            },
+          ],
+        },
+        {
+          title: 'Superset',
+          icon: PieChart,
+          items: [
+            {
+              title: 'Аналитика 1C',
+              url: '/analytics-1c',
+              icon: LineChart,
             },
           ],
         },
