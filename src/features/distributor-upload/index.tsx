@@ -50,7 +50,8 @@ const formatAmount = (n: number) => `${n.toLocaleString('ru-RU')} ₽`
 
 // Two different codes ride along on each row — don't mix them up:
 // product_type (SL/BN/OS) is the brand ("Тип продукта" below), type
-// (SALES/STOCK) is the operation kind ("Тип операции").
+// (SALE/STOCK) is the operation kind ("Тип операции"). SALE (not SALES)
+// matches the backend's Operation enum exactly — Operation.SALE.
 const BRAND_LABELS: Record<string, string> = {
   SL: 'Solgar',
   BN: 'Bounty',
@@ -58,9 +59,19 @@ const BRAND_LABELS: Record<string, string> = {
 }
 
 const OPERATION_TYPE_LABELS: Record<string, string> = {
-  SALES: 'Продажи',
+  SALE: 'Продажи',
   STOCK: 'Остатки',
 }
+
+// Java's own rule — no user-facing "Тип операции" control on this screen at
+// all, it's derived from the file name alone: a name containing "продажи"
+// is a SALE file, everything else is STOCK ("ПРОДАЖ" alone covers every
+// inflection, продажи/продажа, since it's their common stem). File-name
+// date formats are too inconsistent to derive begin/end from the same way
+// (some use dd.MM.yyyy ranges, others a bare "2408-3108"), so unlike Sales
+// Upload/Pharmacy those stay user-picked (see Дата с/Дата по below).
+const detectOperationType = (fileName: string): 'SALE' | 'STOCK' =>
+  fileName.toUpperCase().includes('ПРОДАЖ') ? 'SALE' : 'STOCK'
 
 // The same 15 columns, in the same order, as the original Java screen.
 // Дистрибьютор/Дата с/Дата по aren't on the row itself — they're constant
@@ -225,16 +236,21 @@ export function DistributorUpload() {
     enabled: Boolean(effectiveCountry),
   })
 
-  // The parser is parametric — SALES vs STOCK is inferred server-side from
-  // the uploaded file's name, so no operation_type is sent here. The
-  // backend stores the whole parsed file as a "batch" and only returns
-  // page 1 (batch_id + num_pages/total_rows drive everything after this).
+  // Тип операции has no dropdown of its own — same as the Java client, it's
+  // derived straight from the file name (see detectOperationType) and sent
+  // as-is, never asked of the user. The backend stores the whole parsed
+  // file as a "batch" and only returns page 1 (batch_id + num_pages/
+  // total_rows drive everything after this).
   const previewMutation = useMutation({
     mutationFn: async () => {
       const formData = new FormData()
       formData.append('excel_file', file as File)
       formData.append('country', effectiveCountry)
       formData.append('distributor', distributor)
+      formData.append(
+        'operation_type',
+        detectOperationType((file as File).name)
+      )
       formData.append('begin_date', beginDate)
       formData.append('end_date', endDate)
       const res = await api.post<DistributorUploadPreviewResponse>(
@@ -273,6 +289,26 @@ export function DistributorUpload() {
       }
     },
   })
+
+  // Дата с/Дата по cover a single month of distributor data — Дата с must
+  // be that month's 1st, Дата по must fall later in the same month. Shared
+  // by both Предпросмотр and Сохранить below. Parsed as plain yyyy-MM-dd
+  // strings (not `new Date(...)`) so a UTC-vs-local day shift can't slip a
+  // valid date past the check.
+  const validateDateRange = (): string | null => {
+    const [begYear, begMonth, begDay] = beginDate.split('-')
+    const [endYear, endMonth, endDay] = endDate.split('-')
+    if (begDay !== '01') {
+      return 'Ошибка: «Дата с» должна быть первым днём месяца (01).'
+    }
+    if (begMonth !== endMonth || begYear !== endYear) {
+      return 'Ошибка: «Дата с» и «Дата по» должны быть в одном месяце.'
+    }
+    if (Number(endDay) <= 1) {
+      return 'Ошибка: «Дата по» должна быть больше первого дня месяца.'
+    }
+    return null
+  }
 
   const goToPage = (page: number) => {
     const numPages = previewMutation.data?.num_pages ?? 1
@@ -320,35 +356,26 @@ export function DistributorUpload() {
       return
     }
 
-    // ---- KONTROL 1: Dosya adı ile seçilen distribütör eşleşmesi ----
-    // "APTEKA-RU_03_2025.xlsx" -> "APTEKA-RU"
-    const fileDistName = file.name.split('_')[0]
-    const isDistNameMatching =
-      fileDistName &&
-      fileDistName.trim().toUpperCase() === distributor.trim().toUpperCase()
+    // ---- KONTROL: Dosya adı ile seçilen distribütör eşleşmesi ----
+    // Java: if(fileName.indexOf(selectedItem)<0) -> hata. Distribütör adı
+    // dosya adının herhangi bir yerinde geçebilir (prefix olmak zorunda
+    // değil) — "VITALAINSAMARA_07 Солгар - продажи аптек.xlsx" gibi.
+    const isDistNameMatching = file.name
+      .toUpperCase()
+      .includes(distributor.trim().toUpperCase())
     if (!isDistNameMatching) {
       setValidationError(
-        `Ошибка: Выбранный дистрибьютор (${distributor}) не совпадает с именем в названии файла (${fileDistName}).`
+        `Ошибка: Имя файла не содержит выбранного дистрибьютора (${distributor}). Выберите правильный файл.`
       )
       return
     }
 
-    // ---- KONTROL 2: Dosya adındaki ay/yıl ile "Дата с" eşleşmesi + gün 1 ----
-    // Sadece Дата с kontrol edilir, Дата по'ya bakılmaz.
-    const nameParts = file.name.replace(/\.[^/.]+$/, '').split('_')
-    const fileMonth = nameParts[1] // "03"
-    const fileYear = nameParts[2] // "2025"
-
-    // Date input değeri yyyy-MM-dd gelir; timezone kayması olmasın diye string'den parçalıyoruz
-    const [begYear, begMonth, begDay] = beginDate.split('-')
-
-    const isDateMatching =
-      fileMonth === begMonth && fileYear === begYear && begDay === '01'
-
-    if (!isDateMatching) {
-      setValidationError(
-        'Ошибка: Дата "с" не совпадает с датой в названии файла. Проверьте месяц/год и выберите первый день месяца.'
-      )
+    // Дата с/по are never checked against the file name — its date formats
+    // are too inconsistent ("01.06.2026-30.06.2026", "2408-3108", ...) —
+    // but they are checked against each other (see validateDateRange).
+    const dateError = validateDateRange()
+    if (dateError) {
+      setValidationError(dateError)
       return
     }
 
@@ -360,6 +387,11 @@ export function DistributorUpload() {
   }
 
   const handleSave = () => {
+    const dateError = validateDateRange()
+    if (dateError) {
+      setValidationError(dateError)
+      return
+    }
     saveMutation.mutate()
   }
 

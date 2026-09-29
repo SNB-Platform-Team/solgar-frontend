@@ -9,11 +9,12 @@ export interface StorageOptionsResponse {
 }
 
 /**
- * One row of a depo-upload preview. The parser is parametric — SALES vs
- * STOCK is inferred server-side from the uploaded file's name, not sent by
- * the client — but every row comes back with this same rich shape either
- * way. `type` is the brand-like classification (SOLGAR / NATURES BOUNTY)
- * that the summary counts below are grouped by.
+ * One row of a depo-upload preview. The parser is parametric — SALE vs
+ * STOCK is inferred server-side from the uploaded file's name too, but the
+ * client also derives and sends it explicitly (see detectOperationType in
+ * index.tsx) — every row comes back with this same rich shape either way.
+ * `type` is the brand-like classification (SOLGAR / NATURES BOUNTY) that
+ * the summary counts below are grouped by.
  */
 export interface DistributorUploadRow {
   index: number
@@ -62,7 +63,7 @@ export interface DistributorUploadPreviewResponse {
   page_size: number
   total_rows: number
   num_pages: number
-  /** SALES or STOCK — inferred from the file name, echoed back for save/. */
+  /** SALE or STOCK — inferred from the file name, echoed back for save/. */
   type: string
   summary: DistributorUploadSummary
   meta: DistributorUploadMeta
