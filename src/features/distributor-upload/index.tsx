@@ -73,6 +73,15 @@ const OPERATION_TYPE_LABELS: Record<string, string> = {
 const detectOperationType = (fileName: string): 'SALE' | 'STOCK' =>
   fileName.toUpperCase().includes('ПРОДАЖ') ? 'SALE' : 'STOCK'
 
+// Some distributors' own file names are transliterated to Latin rather than
+// using their Cyrillic Дистрибьютор name (dropdown value) as-is — e.g.
+// ВИТАЛАЙНСАМАРА ships files named "VITALAINSAMARA_...". Add the distributor's
+// dropdown name (uppercased) here if a new one turns up with the same
+// mismatch; everyone else matches on their own name directly.
+const CYRILLIC_LATIN_ALIASES: Record<string, string> = {
+  ВИТАЛАЙНСАМАРА: 'VITALAINSAMARA',
+}
+
 // The same 15 columns, in the same order, as the original Java screen.
 // Дистрибьютор/Дата с/Дата по aren't on the row itself — they're constant
 // for the whole upload, so every column pulls from `meta` for those.
@@ -359,10 +368,15 @@ export function DistributorUpload() {
     // ---- KONTROL: Dosya adı ile seçilen distribütör eşleşmesi ----
     // Java: if(fileName.indexOf(selectedItem)<0) -> hata. Distribütör adı
     // dosya adının herhangi bir yerinde geçebilir (prefix olmak zorunda
-    // değil) — "VITALAINSAMARA_07 Солгар - продажи аптек.xlsx" gibi.
-    const isDistNameMatching = file.name
-      .toUpperCase()
-      .includes(distributor.trim().toUpperCase())
+    // değil) — "VITALAINSAMARA_07 Солгар - продажи аптек.xlsx" gibi. Bazı
+    // distribütörlerin dosya adları Kiril yerine Latin harf kullanıyor (bkz.
+    // CYRILLIC_LATIN_ALIASES) — o durumda Latin karşılığı da kabul edilir.
+    const fileNameUpper = file.name.toUpperCase()
+    const distributorUpper = distributor.trim().toUpperCase()
+    const latinAlias = CYRILLIC_LATIN_ALIASES[distributorUpper]
+    const isDistNameMatching =
+      fileNameUpper.includes(distributorUpper) ||
+      (latinAlias !== undefined && fileNameUpper.includes(latinAlias))
     if (!isDistNameMatching) {
       setValidationError(
         `Ошибка: Имя файла не содержит выбранного дистрибьютора (${distributor}). Выберите правильный файл.`

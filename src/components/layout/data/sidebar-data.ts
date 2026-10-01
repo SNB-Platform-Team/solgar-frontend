@@ -12,6 +12,7 @@ import {
   MessageCircle,
   Package,
   PieChart,
+  Presentation,
   Settings2,
   Stethoscope,
   Store,
@@ -128,13 +129,18 @@ export const sidebarData: SidebarData = {
           ],
         },
         {
-          title: 'Superset',
+          title: 'Аналитика',
           icon: PieChart,
           items: [
             {
               title: 'Аналитика 1C',
               url: '/analytics-1c',
               icon: LineChart,
+            },
+            {
+              title: 'Power BI',
+              url: '/powerbi',
+              icon: Presentation,
             },
           ],
         },
