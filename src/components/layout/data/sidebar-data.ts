@@ -60,58 +60,58 @@ export const sidebarData: SidebarData = {
           icon: Package,
           items: [
             {
-              title: 'Отчет по продажам',
+              title: 'Продаж&Сток',
               icon: FileBarChart,
               items: [
                 {
-                  title: 'Аптечная сеть продаж',
-                  url: '/chain-report',
-                  icon: BarChart,
-                },
-                {
-                  title: 'Просмотр Сток и Продажа',
-                  url: '/sales-obs',
-                  icon: TrendingUp,
-                },
-                {
-                  title: 'Загрузка продаж',
+                  title: 'Аптечной Сети Ввод Продаж&Сток',
                   url: '/sales-upload',
                   icon: Upload,
                 },
                 {
-                  title: 'Дистрибьюторская нагрузка',
+                  title: 'Аптечной Сети Просмотр Продаж&Сток',
+                  url: '/chain-report',
+                  icon: BarChart,
+                },
+                {
+                  title: 'Дистрибьютор Ввод Продаж&Сток',
                   url: '/distributor-upload',
                   icon: Truck,
+                },
+                {
+                  title: 'Дистрибьютор Просмотр Продаж&Сток',
+                  url: '/sales-obs',
+                  icon: TrendingUp,
                 },
               ],
             },
             {
-              title: 'База данных',
+              title: 'Аптек&Врач',
               icon: Table2,
               items: [
                 {
-                  title: 'Аптеки',
+                  title: 'Аптек Управление Данными',
                   url: '/pharmacies',
                   icon: Store,
                 },
                 {
-                  title: 'Врачи',
+                  title: 'Врач Управление Данными',
                   url: '/doctors',
                   icon: Stethoscope,
                 },
               ],
             },
             {
-              title: 'Административные экраны',
+              title: 'Просмотр Отчетов',
               icon: Settings2,
               items: [
                 {
-                  title: 'Экран администрирования аптек',
+                  title: 'Аптек Сводный Обзор',
                   url: '/pharm-managerial',
                   icon: Building2,
                 },
                 {
-                  title: 'Экран администрирования врача',
+                  title: 'Врач Сводный Обзор',
                   url: '/doctor-managerial',
                   icon: ClipboardList,
                 },
@@ -144,17 +144,17 @@ export const sidebarData: SidebarData = {
               icon: Presentation,
               items: [
                 {
-                  title: 'Отчёт Power BI',
+                  title: 'Solgar EN Online&Offline',
                   url: '/powerbi',
                   icon: Presentation,
                 },
                 {
-                  title: 'Общий вид Solgar',
+                  title: 'Solgar Общий Обзор',
                   url: '/powerbi-obshiy',
                   icon: Globe,
                 },
                 {
-                  title: "Общий вид Nature's Bounty",
+                  title: "Nature's Bounty Общий Обзор",
                   url: '/powerbi-bounty',
                   icon: Award,
                 },

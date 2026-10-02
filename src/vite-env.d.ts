@@ -8,6 +8,7 @@ interface ImportMetaEnv {
   readonly VITE_POWERBI_REPORT_URL: string
   readonly VITE_POWERBI_OBSHIY_URL: string
   readonly VITE_POWERBI_BOUNTY_URL: string
+  readonly VITE_YANDEX_MAPS_API_KEY: string
 }
 
 interface ImportMeta {

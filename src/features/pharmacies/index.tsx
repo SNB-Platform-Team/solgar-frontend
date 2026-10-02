@@ -10,6 +10,7 @@ import {
   Search as SearchIcon,
   X,
 } from 'lucide-react'
+import { findAddressColumns, isAddressMissing } from '@/lib/address-columns'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useCountryLock } from '@/hooks/use-country-lock'
@@ -45,6 +46,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { AddressMap } from '@/components/address-map'
 import { BrandSpinner } from '@/components/brand-spinner'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -1058,9 +1060,8 @@ export function Pharmacies() {
                       Единственное редактируемое поле здесь. Заполняет
                       Официальный адрес, Улицу, Дом, Область, Подрайон,
                       point_x/point_y, код страны и тип здания ниже по
-                      найденному адресу — эти поля недоступны для ручного
-                      ввода и берутся только из результата геокодирования
-                      (DaData).
+                      найденному адресу — эти поля недоступны для ручного ввода
+                      и берутся только из результата геокодирования (DaData).
                     </p>
                   </div>
                   <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
@@ -1150,6 +1151,20 @@ export function Pharmacies() {
                       />
                     </div>
                   </div>
+                  <div className='space-y-1.5'>
+                    <Label>Карта (клик — поставить точку)</Label>
+                    <AddressMap
+                      pointX={form.point_x}
+                      pointY={form.point_y}
+                      onPick={(lat, lng) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          point_x: String(lng),
+                          point_y: String(lat),
+                        }))
+                      }
+                    />
+                  </div>
                 </div>
               </fieldset>
 
@@ -1219,8 +1234,8 @@ export function Pharmacies() {
                 Несохранённые записи ({pendingRows.length})
               </CardTitle>
               <CardDescription>
-                Добавлены локально — нажмите «Сохранить» в карточке выше,
-                чтобы записать их в базу
+                Добавлены локально — нажмите «Сохранить» в карточке выше, чтобы
+                записать их в базу
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1477,32 +1492,40 @@ export function Pharmacies() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.rows.map((row, idx) => {
-                      const id = row[0] != null ? String(row[0]) : ''
-                      const selected =
-                        id !== '' &&
-                        editingId != null &&
-                        id === String(editingId)
-                      return (
-                        <TableRow
-                          key={idx}
-                          onClick={() => handleRowClick(id)}
-                          className={cn(
-                            id && 'cursor-pointer hover:bg-muted/50',
-                            selected && 'bg-muted'
-                          )}
-                        >
-                          {row.map((cell, cellIdx) => (
-                            <TableCell
-                              key={cellIdx}
-                              className='whitespace-nowrap'
-                            >
-                              {cell ?? ''}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      )
-                    })}
+                    {(() => {
+                      const addressCols = findAddressColumns(data.columns)
+                      return data.rows.map((row, idx) => {
+                        const id = row[0] != null ? String(row[0]) : ''
+                        const selected =
+                          id !== '' &&
+                          editingId != null &&
+                          id === String(editingId)
+                        const missingAddress = isAddressMissing(
+                          row,
+                          addressCols
+                        )
+                        return (
+                          <TableRow
+                            key={idx}
+                            onClick={() => handleRowClick(id)}
+                            className={cn(
+                              id && 'cursor-pointer hover:bg-muted/50',
+                              missingAddress && 'bg-destructive/10',
+                              selected && 'bg-muted'
+                            )}
+                          >
+                            {row.map((cell, cellIdx) => (
+                              <TableCell
+                                key={cellIdx}
+                                className='whitespace-nowrap'
+                              >
+                                {cell ?? ''}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        )
+                      })
+                    })()}
                   </TableBody>
                 </Table>
               </div>
