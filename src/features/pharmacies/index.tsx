@@ -180,8 +180,12 @@ export function Pharmacies() {
   // only submitting the form (or pressing Enter) commits `search` to the URL.
   const [searchInput, setSearchInput] = useState(query)
 
+  // resetScroll: false — this navigate() only ever updates filters/search/
+  // page within the same route, and TanStack Router's default is to scroll
+  // the window back to top on every navigation (including these), which
+  // yanks the list back up whenever Вперёд/Назад is clicked mid-scroll.
   const setSearch = (next: PharmaciesSearch) =>
-    navigate({ search: (prev) => ({ ...prev, ...next }) })
+    navigate({ search: (prev) => ({ ...prev, ...next }), resetScroll: false })
 
   // Every dropdown filter resets pagination back to page 1.
   const applyFilter = (patch: PharmaciesSearch) =>
