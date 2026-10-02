@@ -7,6 +7,7 @@ interface ImportMetaEnv {
   readonly VITE_POWERBI_DASHBOARD_URL: string
   readonly VITE_POWERBI_REPORT_URL: string
   readonly VITE_POWERBI_OBSHIY_URL: string
+  readonly VITE_POWERBI_BOUNTY_URL: string
 }
 
 interface ImportMeta {

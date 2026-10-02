@@ -1,4 +1,5 @@
 import {
+  Award,
   BarChart,
   Building,
   Building2,
@@ -151,6 +152,11 @@ export const sidebarData: SidebarData = {
                   title: 'Общий вид Solgar',
                   url: '/powerbi-obshiy',
                   icon: Globe,
+                },
+                {
+                  title: "Общий вид Nature's Bounty",
+                  url: '/powerbi-bounty',
+                  icon: Award,
                 },
               ],
             },
