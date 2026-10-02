@@ -5,6 +5,7 @@ import {
   ClipboardList,
   Database,
   FileBarChart,
+  Globe,
   HelpCircle,
   LayoutDashboard,
   Link2,
@@ -139,8 +140,19 @@ export const sidebarData: SidebarData = {
             },
             {
               title: 'Power BI',
-              url: '/powerbi',
               icon: Presentation,
+              items: [
+                {
+                  title: 'Отчёт Power BI',
+                  url: '/powerbi',
+                  icon: Presentation,
+                },
+                {
+                  title: 'Общий вид Solgar',
+                  url: '/powerbi-obshiy',
+                  icon: Globe,
+                },
+              ],
             },
           ],
         },

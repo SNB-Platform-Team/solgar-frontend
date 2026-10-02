@@ -41,6 +41,7 @@ import { Route as AuthenticatedHrlinkIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedOnecStockIndexRouteImport } from './routes/_authenticated/onec-stock/index'
 import { Route as AuthenticatedPharmManagerialIndexRouteImport } from './routes/_authenticated/pharm-managerial/index'
 import { Route as AuthenticatedPharmaciesIndexRouteImport } from './routes/_authenticated/pharmacies/index'
+import { Route as AuthenticatedPowerbiObshiyIndexRouteImport } from './routes/_authenticated/powerbi-obshiy/index'
 import { Route as AuthenticatedPowerbiIndexRouteImport } from './routes/_authenticated/powerbi/index'
 import { Route as AuthenticatedReportsIndexRouteImport } from './routes/_authenticated/reports/index'
 import { Route as AuthenticatedSalesObsIndexRouteImport } from './routes/_authenticated/sales-obs/index'
@@ -227,6 +228,12 @@ const AuthenticatedPharmaciesIndexRoute =
     path: '/pharmacies/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedPowerbiObshiyIndexRoute =
+  AuthenticatedPowerbiObshiyIndexRouteImport.update({
+    id: '/powerbi-obshiy/',
+    path: '/powerbi-obshiy/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPowerbiIndexRoute =
   AuthenticatedPowerbiIndexRouteImport.update({
     id: '/powerbi/',
@@ -345,6 +352,7 @@ export interface FileRoutesByFullPath {
   '/onec-stock/': typeof AuthenticatedOnecStockIndexRoute
   '/pharm-managerial/': typeof AuthenticatedPharmManagerialIndexRoute
   '/pharmacies/': typeof AuthenticatedPharmaciesIndexRoute
+  '/powerbi-obshiy/': typeof AuthenticatedPowerbiObshiyIndexRoute
   '/powerbi/': typeof AuthenticatedPowerbiIndexRoute
   '/reports/': typeof AuthenticatedReportsIndexRoute
   '/sales-obs/': typeof AuthenticatedSalesObsIndexRoute
@@ -389,6 +397,7 @@ export interface FileRoutesByTo {
   '/onec-stock': typeof AuthenticatedOnecStockIndexRoute
   '/pharm-managerial': typeof AuthenticatedPharmManagerialIndexRoute
   '/pharmacies': typeof AuthenticatedPharmaciesIndexRoute
+  '/powerbi-obshiy': typeof AuthenticatedPowerbiObshiyIndexRoute
   '/powerbi': typeof AuthenticatedPowerbiIndexRoute
   '/reports': typeof AuthenticatedReportsIndexRoute
   '/sales-obs': typeof AuthenticatedSalesObsIndexRoute
@@ -438,6 +447,7 @@ export interface FileRoutesById {
   '/_authenticated/onec-stock/': typeof AuthenticatedOnecStockIndexRoute
   '/_authenticated/pharm-managerial/': typeof AuthenticatedPharmManagerialIndexRoute
   '/_authenticated/pharmacies/': typeof AuthenticatedPharmaciesIndexRoute
+  '/_authenticated/powerbi-obshiy/': typeof AuthenticatedPowerbiObshiyIndexRoute
   '/_authenticated/powerbi/': typeof AuthenticatedPowerbiIndexRoute
   '/_authenticated/reports/': typeof AuthenticatedReportsIndexRoute
   '/_authenticated/sales-obs/': typeof AuthenticatedSalesObsIndexRoute
@@ -485,6 +495,7 @@ export interface FileRouteTypes {
     | '/onec-stock/'
     | '/pharm-managerial/'
     | '/pharmacies/'
+    | '/powerbi-obshiy/'
     | '/powerbi/'
     | '/reports/'
     | '/sales-obs/'
@@ -529,6 +540,7 @@ export interface FileRouteTypes {
     | '/onec-stock'
     | '/pharm-managerial'
     | '/pharmacies'
+    | '/powerbi-obshiy'
     | '/powerbi'
     | '/reports'
     | '/sales-obs'
@@ -577,6 +589,7 @@ export interface FileRouteTypes {
     | '/_authenticated/onec-stock/'
     | '/_authenticated/pharm-managerial/'
     | '/_authenticated/pharmacies/'
+    | '/_authenticated/powerbi-obshiy/'
     | '/_authenticated/powerbi/'
     | '/_authenticated/reports/'
     | '/_authenticated/sales-obs/'
@@ -827,6 +840,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPharmaciesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/powerbi-obshiy/': {
+      id: '/_authenticated/powerbi-obshiy/'
+      path: '/powerbi-obshiy'
+      fullPath: '/powerbi-obshiy/'
+      preLoaderRoute: typeof AuthenticatedPowerbiObshiyIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/powerbi/': {
       id: '/_authenticated/powerbi/'
       path: '/powerbi'
@@ -970,6 +990,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOnecStockIndexRoute: typeof AuthenticatedOnecStockIndexRoute
   AuthenticatedPharmManagerialIndexRoute: typeof AuthenticatedPharmManagerialIndexRoute
   AuthenticatedPharmaciesIndexRoute: typeof AuthenticatedPharmaciesIndexRoute
+  AuthenticatedPowerbiObshiyIndexRoute: typeof AuthenticatedPowerbiObshiyIndexRoute
   AuthenticatedPowerbiIndexRoute: typeof AuthenticatedPowerbiIndexRoute
   AuthenticatedReportsIndexRoute: typeof AuthenticatedReportsIndexRoute
   AuthenticatedSalesObsIndexRoute: typeof AuthenticatedSalesObsIndexRoute
@@ -1000,6 +1021,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPharmManagerialIndexRoute:
     AuthenticatedPharmManagerialIndexRoute,
   AuthenticatedPharmaciesIndexRoute: AuthenticatedPharmaciesIndexRoute,
+  AuthenticatedPowerbiObshiyIndexRoute: AuthenticatedPowerbiObshiyIndexRoute,
   AuthenticatedPowerbiIndexRoute: AuthenticatedPowerbiIndexRoute,
   AuthenticatedReportsIndexRoute: AuthenticatedReportsIndexRoute,
   AuthenticatedSalesObsIndexRoute: AuthenticatedSalesObsIndexRoute,
