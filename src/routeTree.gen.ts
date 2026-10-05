@@ -26,6 +26,9 @@ import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authen
 import { Route as ClerkauthRouteRouteImport } from './routes/clerk/(auth)/route'
 import { Route as ClerkAuthenticatedRouteRouteImport } from './routes/clerk/_authenticated/route'
 import { Route as AuthenticatedAnalytics1cIndexRouteImport } from './routes/_authenticated/analytics-1c/index'
+import { Route as AuthenticatedAnalytics1cDistributorSalesRouteImport } from './routes/_authenticated/analytics-1c/distributor-sales'
+import { Route as AuthenticatedAnalytics1cProductSalesRouteImport } from './routes/_authenticated/analytics-1c/product-sales'
+import { Route as AuthenticatedAnalytics1cStockMovementRouteImport } from './routes/_authenticated/analytics-1c/stock-movement'
 import { Route as AuthenticatedAppsIndexRouteImport } from './routes/_authenticated/apps/index'
 import { Route as AuthenticatedBitrix24IndexRouteImport } from './routes/_authenticated/bitrix24/index'
 import { Route as AuthenticatedChainReportIndexRouteImport } from './routes/_authenticated/chain-report/index'
@@ -140,6 +143,24 @@ const AuthenticatedAnalytics1cIndexRoute =
   AuthenticatedAnalytics1cIndexRouteImport.update({
     id: '/analytics-1c/',
     path: '/analytics-1c/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAnalytics1cDistributorSalesRoute =
+  AuthenticatedAnalytics1cDistributorSalesRouteImport.update({
+    id: '/analytics-1c/distributor-sales',
+    path: '/analytics-1c/distributor-sales',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAnalytics1cProductSalesRoute =
+  AuthenticatedAnalytics1cProductSalesRouteImport.update({
+    id: '/analytics-1c/product-sales',
+    path: '/analytics-1c/product-sales',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAnalytics1cStockMovementRoute =
+  AuthenticatedAnalytics1cStockMovementRouteImport.update({
+    id: '/analytics-1c/stock-movement',
+    path: '/analytics-1c/stock-movement',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAppsIndexRoute = AuthenticatedAppsIndexRouteImport.update({
@@ -336,6 +357,9 @@ export interface FileRoutesByFullPath {
   '/404': typeof errors404Route
   '/500': typeof errors500Route
   '/503': typeof errors503Route
+  '/analytics-1c/distributor-sales': typeof AuthenticatedAnalytics1cDistributorSalesRoute
+  '/analytics-1c/product-sales': typeof AuthenticatedAnalytics1cProductSalesRoute
+  '/analytics-1c/stock-movement': typeof AuthenticatedAnalytics1cStockMovementRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
@@ -382,6 +406,9 @@ export interface FileRoutesByTo {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/': typeof AuthenticatedIndexRoute
+  '/analytics-1c/distributor-sales': typeof AuthenticatedAnalytics1cDistributorSalesRoute
+  '/analytics-1c/product-sales': typeof AuthenticatedAnalytics1cProductSalesRoute
+  '/analytics-1c/stock-movement': typeof AuthenticatedAnalytics1cStockMovementRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
@@ -433,6 +460,9 @@ export interface FileRoutesById {
   '/(errors)/500': typeof errors500Route
   '/(errors)/503': typeof errors503Route
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/analytics-1c/distributor-sales': typeof AuthenticatedAnalytics1cDistributorSalesRoute
+  '/_authenticated/analytics-1c/product-sales': typeof AuthenticatedAnalytics1cProductSalesRoute
+  '/_authenticated/analytics-1c/stock-movement': typeof AuthenticatedAnalytics1cStockMovementRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
@@ -482,6 +512,9 @@ export interface FileRouteTypes {
     | '/404'
     | '/500'
     | '/503'
+    | '/analytics-1c/distributor-sales'
+    | '/analytics-1c/product-sales'
+    | '/analytics-1c/stock-movement'
     | '/errors/$error'
     | '/settings/account'
     | '/settings/appearance'
@@ -528,6 +561,9 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/'
+    | '/analytics-1c/distributor-sales'
+    | '/analytics-1c/product-sales'
+    | '/analytics-1c/stock-movement'
     | '/errors/$error'
     | '/settings/account'
     | '/settings/appearance'
@@ -578,6 +614,9 @@ export interface FileRouteTypes {
     | '/(errors)/500'
     | '/(errors)/503'
     | '/_authenticated/'
+    | '/_authenticated/analytics-1c/distributor-sales'
+    | '/_authenticated/analytics-1c/product-sales'
+    | '/_authenticated/analytics-1c/stock-movement'
     | '/_authenticated/errors/$error'
     | '/_authenticated/settings/account'
     | '/_authenticated/settings/appearance'
@@ -746,6 +785,27 @@ declare module '@tanstack/react-router' {
       path: '/analytics-1c'
       fullPath: '/analytics-1c/'
       preLoaderRoute: typeof AuthenticatedAnalytics1cIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/analytics-1c/distributor-sales': {
+      id: '/_authenticated/analytics-1c/distributor-sales'
+      path: '/analytics-1c/distributor-sales'
+      fullPath: '/analytics-1c/distributor-sales'
+      preLoaderRoute: typeof AuthenticatedAnalytics1cDistributorSalesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/analytics-1c/product-sales': {
+      id: '/_authenticated/analytics-1c/product-sales'
+      path: '/analytics-1c/product-sales'
+      fullPath: '/analytics-1c/product-sales'
+      preLoaderRoute: typeof AuthenticatedAnalytics1cProductSalesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/analytics-1c/stock-movement': {
+      id: '/_authenticated/analytics-1c/stock-movement'
+      path: '/analytics-1c/stock-movement'
+      fullPath: '/analytics-1c/stock-movement'
+      preLoaderRoute: typeof AuthenticatedAnalytics1cStockMovementRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/apps/': {
@@ -994,6 +1054,9 @@ const AuthenticatedSettingsRouteRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedAnalytics1cDistributorSalesRoute: typeof AuthenticatedAnalytics1cDistributorSalesRoute
+  AuthenticatedAnalytics1cProductSalesRoute: typeof AuthenticatedAnalytics1cProductSalesRoute
+  AuthenticatedAnalytics1cStockMovementRoute: typeof AuthenticatedAnalytics1cStockMovementRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedAnalytics1cIndexRoute: typeof AuthenticatedAnalytics1cIndexRoute
   AuthenticatedAppsIndexRoute: typeof AuthenticatedAppsIndexRoute
@@ -1023,6 +1086,12 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedAnalytics1cDistributorSalesRoute:
+    AuthenticatedAnalytics1cDistributorSalesRoute,
+  AuthenticatedAnalytics1cProductSalesRoute:
+    AuthenticatedAnalytics1cProductSalesRoute,
+  AuthenticatedAnalytics1cStockMovementRoute:
+    AuthenticatedAnalytics1cStockMovementRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedAnalytics1cIndexRoute: AuthenticatedAnalytics1cIndexRoute,
   AuthenticatedAppsIndexRoute: AuthenticatedAppsIndexRoute,

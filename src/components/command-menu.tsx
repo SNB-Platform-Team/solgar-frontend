@@ -57,22 +57,22 @@ export function CommandMenu() {
                 // A group can nest further groups (e.g. Solgar Intern >
                 // Отчет по продажам > ...), so flatten to leaf pages with
                 // their full breadcrumb rather than assuming one level.
-                return flattenNavItems(navItem.items ?? [], [
-                  navItem.title,
-                ]).map(({ path, item: subItem }, i) => (
-                  <CommandItem
-                    key={`${path.join('-')}-${subItem.url}-${i}`}
-                    value={`${path.join('-')}-${subItem.url}`}
-                    onSelect={() => {
-                      runCommand(() => navigate({ to: subItem.url }))
-                    }}
-                  >
-                    <div className='flex size-4 items-center justify-center'>
-                      <ArrowRight className='size-2 text-muted-foreground/80' />
-                    </div>
-                    {path.join(' / ')} <ChevronRight /> {subItem.title}
-                  </CommandItem>
-                ))
+                return flattenNavItems(navItem.items ?? [], [navItem.title])
+                  .filter(({ item: subItem }) => !subItem.disabled)
+                  .map(({ path, item: subItem }, i) => (
+                    <CommandItem
+                      key={`${path.join('-')}-${subItem.url}-${i}`}
+                      value={`${path.join('-')}-${subItem.url}`}
+                      onSelect={() => {
+                        runCommand(() => navigate({ to: subItem.url }))
+                      }}
+                    >
+                      <div className='flex size-4 items-center justify-center'>
+                        <ArrowRight className='size-2 text-muted-foreground/80' />
+                      </div>
+                      {path.join(' / ')} <ChevronRight /> {subItem.title}
+                    </CommandItem>
+                  ))
               })}
             </CommandGroup>
           ))}

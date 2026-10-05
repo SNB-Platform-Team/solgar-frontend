@@ -63,8 +63,31 @@ function NavBadge({ children }: { children: ReactNode }) {
   return <Badge className='rounded-full px-1 py-0 text-xs'>{children}</Badge>
 }
 
+// Greyed-out, non-navigating stand-in for a nav link marked `disabled` —
+// a <span> rather than a <Link>, so there's nothing to click through to.
+const DISABLED_LINK_CLASS =
+  'cursor-not-allowed opacity-50 hover:bg-transparent hover:text-sidebar-foreground active:bg-transparent'
+
+function DisabledLinkContent({ item }: { item: NavLink }) {
+  return (
+    <span aria-disabled='true' className={DISABLED_LINK_CLASS}>
+      {item.icon && <item.icon />}
+      <span>{item.title}</span>
+      {item.badge && <NavBadge>{item.badge}</NavBadge>}
+    </span>
+  )
+}
+
 function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
   const { setOpenMobile } = useSidebar()
+  if (item.disabled)
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton asChild tooltip={item.title}>
+          <DisabledLinkContent item={item} />
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    )
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -126,13 +149,17 @@ function NavSubTree({ items, href }: { items: NavItem[]; href: string }) {
             <SidebarMenuSubItem key={item.title}>
               <SidebarMenuSubButton
                 asChild
-                isActive={checkIsActive(href, item)}
+                isActive={!item.disabled && checkIsActive(href, item)}
               >
-                <Link to={item.url} onClick={() => setOpenMobile(false)}>
-                  {item.icon && <item.icon />}
-                  <span>{item.title}</span>
-                  {item.badge && <NavBadge>{item.badge}</NavBadge>}
-                </Link>
+                {item.disabled ? (
+                  <DisabledLinkContent item={item} />
+                ) : (
+                  <Link to={item.url} onClick={() => setOpenMobile(false)}>
+                    {item.icon && <item.icon />}
+                    <span>{item.title}</span>
+                    {item.badge && <NavBadge>{item.badge}</NavBadge>}
+                  </Link>
+                )}
               </SidebarMenuSubButton>
             </SidebarMenuSubItem>
           )
@@ -204,11 +231,12 @@ function SidebarMenuCollapsedDropdown({
             {item.title} {item.badge ? `(${item.badge})` : ''}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {leaves.map(({ path, item: sub }) => (
-            <DropdownMenuItem key={`${sub.title}-${sub.url}`} asChild>
-              <Link
-                to={sub.url}
-                className={`${checkIsActive(href, sub) ? 'bg-secondary' : ''}`}
+          {leaves.map(({ path, item: sub }) =>
+            sub.disabled ? (
+              <DropdownMenuItem
+                key={`${sub.title}-${sub.url}`}
+                disabled
+                className='cursor-not-allowed'
               >
                 {sub.icon && <sub.icon />}
                 <span className='max-w-52 text-wrap'>
@@ -216,12 +244,26 @@ function SidebarMenuCollapsedDropdown({
                     ? `${path.join(' / ')} / ${sub.title}`
                     : sub.title}
                 </span>
-                {sub.badge && (
-                  <span className='ms-auto text-xs'>{sub.badge}</span>
-                )}
-              </Link>
-            </DropdownMenuItem>
-          ))}
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem key={`${sub.title}-${sub.url}`} asChild>
+                <Link
+                  to={sub.url}
+                  className={`${checkIsActive(href, sub) ? 'bg-secondary' : ''}`}
+                >
+                  {sub.icon && <sub.icon />}
+                  <span className='max-w-52 text-wrap'>
+                    {path.length > 0
+                      ? `${path.join(' / ')} / ${sub.title}`
+                      : sub.title}
+                  </span>
+                  {sub.badge && (
+                    <span className='ms-auto text-xs'>{sub.badge}</span>
+                  )}
+                </Link>
+              </DropdownMenuItem>
+            )
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </SidebarMenuItem>

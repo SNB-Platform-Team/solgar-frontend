@@ -10,7 +10,6 @@ import {
   Search as SearchIcon,
   X,
 } from 'lucide-react'
-import { findAddressColumns, isAddressMissing } from '@/lib/address-columns'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useCountryLock } from '@/hooks/use-country-lock'
@@ -50,6 +49,7 @@ import { AddressMap } from '@/components/address-map'
 import { BrandSpinner } from '@/components/brand-spinner'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { ServerDataTable } from '@/components/data-table'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -95,10 +95,28 @@ interface PharmaciesSearch {
   region?: string
   city?: string
   group_company?: string
+  subgroup_company?: string
   pharmacy_category?: string
   pharmacy_type?: string
   promo?: string
   marketing_staff?: string
+  pharmacy_activeness?: string
+}
+
+// Every filter-panel key — cleared together by Сбросить фильтры and on a
+// brand change (different brands are different tables server-side).
+const CLEARED_FILTERS: PharmaciesSearch = {
+  country: undefined,
+  area: undefined,
+  region: undefined,
+  city: undefined,
+  group_company: undefined,
+  subgroup_company: undefined,
+  pharmacy_category: undefined,
+  pharmacy_type: undefined,
+  promo: undefined,
+  marketing_staff: undefined,
+  pharmacy_activeness: undefined,
 }
 
 const DEFAULT_PHARMACY_FORM: PharmacyFormValues = {
@@ -203,10 +221,12 @@ export function Pharmacies() {
         search.region,
         search.city,
         search.group_company,
+        search.subgroup_company,
         search.pharmacy_category,
         search.pharmacy_type,
         search.promo,
         search.marketing_staff,
+        search.pharmacy_activeness,
       ],
       queryFn: async () => {
         const params = new URLSearchParams({ brand, page: String(page) })
@@ -217,6 +237,8 @@ export function Pharmacies() {
         if (search.city) params.set('city', search.city)
         if (search.group_company)
           params.set('group_company', search.group_company)
+        if (search.subgroup_company)
+          params.set('subgroup_company', search.subgroup_company)
         if (search.pharmacy_category)
           params.set('pharmacy_category', search.pharmacy_category)
         if (search.pharmacy_type)
@@ -224,6 +246,8 @@ export function Pharmacies() {
         if (search.promo) params.set('promo', search.promo)
         if (search.marketing_staff)
           params.set('marketing_staff', search.marketing_staff)
+        if (search.pharmacy_activeness)
+          params.set('pharmacy_activeness', search.pharmacy_activeness)
         const res = await api.get<PharmacyApiResponse>(
           `/sales/api/pharmacy/?${params}`
         )
@@ -234,17 +258,43 @@ export function Pharmacies() {
 
   // Independent dropdown lists for the *filter panel* — re-fetched
   // whenever the list's own brand changes (SOLGAR/BOUNTY/OBF are backed by
-  // different tables server-side). The entry form below has its own,
-  // independent copy of this (formFilterOptions), keyed off the form's own
-  // draft brand rather than the list's.
+  // different tables server-side) or its country does (the backend narrows
+  // Сеть to that country). The entry form below has its own, independent
+  // copy of this (formFilterOptions), keyed off the form's own draft brand
+  // rather than the list's.
   const { data: filterOptions } = useQuery<PharmacyFilterOptions>({
-    queryKey: ['pharmacy-filter-options', brand],
+    queryKey: ['pharmacy-filter-options', brand, effectiveCountry],
     queryFn: async () => {
+      const params = new URLSearchParams({ brand })
+      if (effectiveCountry) params.set('country', effectiveCountry)
       const res = await api.get<PharmacyFilterOptions>(
-        `/sales/api/pharmacy/filter-options/?brand=${encodeURIComponent(brand)}`
+        `/sales/api/pharmacy/filter-options/?${params}`
       )
       return res.data
     },
+  })
+
+  // Подгруппа cascades off Сеть — only fetched once a chain is picked.
+  const { data: subchainOptions } = useQuery<PharmacyCascadeOptions>({
+    queryKey: [
+      'pharmacy-filter-subchain',
+      brand,
+      effectiveCountry,
+      search.group_company,
+    ],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        brand,
+        level: 'subchain',
+        group_company: search.group_company!,
+      })
+      if (effectiveCountry) params.set('country', effectiveCountry)
+      const res = await api.get<PharmacyCascadeOptions>(
+        `/sales/api/pharmacy/filter-options/?${params}`
+      )
+      return res.data
+    },
+    enabled: Boolean(search.group_company),
   })
 
   // Cascading location levels for the *filter panel* — each only fetches
@@ -319,34 +369,10 @@ export function Pharmacies() {
   const changeBrand = (newBrand: string) => {
     // Different brands are different tables server-side, so every filter
     // (besides the free-text search) is reset along with the brand.
-    setSearch({
-      brand: newBrand,
-      page: 1,
-      country: undefined,
-      area: undefined,
-      region: undefined,
-      city: undefined,
-      group_company: undefined,
-      pharmacy_category: undefined,
-      pharmacy_type: undefined,
-      promo: undefined,
-      marketing_staff: undefined,
-    })
+    setSearch({ ...CLEARED_FILTERS, brand: newBrand, page: 1 })
   }
 
-  const resetFilters = () =>
-    setSearch({
-      page: 1,
-      country: undefined,
-      area: undefined,
-      region: undefined,
-      city: undefined,
-      group_company: undefined,
-      pharmacy_category: undefined,
-      pharmacy_type: undefined,
-      promo: undefined,
-      marketing_staff: undefined,
-    })
+  const resetFilters = () => setSearch({ ...CLEARED_FILTERS, page: 1 })
 
   // ===== Карточка аптеки (Pharmacy Entry&Update) =====
 
@@ -1339,6 +1365,8 @@ export function Pharmacies() {
                         area: undefined,
                         region: undefined,
                         city: undefined,
+                        group_company: undefined,
+                        subgroup_company: undefined,
                       })
                     }
                   />
@@ -1384,7 +1412,22 @@ export function Pharmacies() {
                     label='Сеть'
                     value={search.group_company}
                     options={filterOptions?.chains ?? []}
-                    onChange={(v) => applyFilter({ group_company: v })}
+                    onChange={(v) =>
+                      applyFilter({
+                        group_company: v,
+                        subgroup_company: undefined,
+                      })
+                    }
+                  />
+                  <FilterSelect
+                    label='Подгруппа'
+                    value={search.subgroup_company}
+                    options={subchainOptions?.options ?? []}
+                    disabled={!search.group_company}
+                    placeholder={
+                      search.group_company ? 'Все' : 'Сначала выберите сеть'
+                    }
+                    onChange={(v) => applyFilter({ subgroup_company: v })}
                   />
                   <FilterSelect
                     label='Категория'
@@ -1409,6 +1452,12 @@ export function Pharmacies() {
                     value={search.marketing_staff}
                     options={filterOptions?.marketing_staff ?? []}
                     onChange={(v) => applyFilter({ marketing_staff: v })}
+                  />
+                  <FilterSelect
+                    label='Активность'
+                    value={search.pharmacy_activeness}
+                    options={ACTIVENESS_OPTIONS}
+                    onChange={(v) => applyFilter({ pharmacy_activeness: v })}
                   />
                 </div>
               </CardContent>
@@ -1472,67 +1521,14 @@ export function Pharmacies() {
                 <BrandSpinner size={48} label='Загрузка данных' />
               </div>
             ) : data && data.rows.length > 0 ? (
-              <div
-                className={
-                  // 42 dynamic columns from the backend are far wider than
-                  // any viewport — scroll-x-visible keeps a fat, always-on,
-                  // mouse-draggable horizontal scrollbar (rather than the
-                  // thin auto-hide default) so that's discoverable, and
-                  // min-w-max on <Table> below lets it grow to its full
-                  // content width instead of squeezing 42 columns into
-                  // whatever width the container happens to have.
-                  'scroll-x-visible max-h-[600px] overflow-y-auto rounded-md border transition-opacity' +
-                  (isPlaceholderData ? ' opacity-60' : '')
-                }
-              >
-                <Table className='min-w-max'>
-                  <TableHeader className='sticky top-0 bg-card'>
-                    <TableRow>
-                      {data.columns.map((col) => (
-                        <TableHead key={col} className='whitespace-nowrap'>
-                          {col}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(() => {
-                      const addressCols = findAddressColumns(data.columns)
-                      return data.rows.map((row, idx) => {
-                        const id = row[0] != null ? String(row[0]) : ''
-                        const selected =
-                          id !== '' &&
-                          editingId != null &&
-                          id === String(editingId)
-                        const missingAddress = isAddressMissing(
-                          row,
-                          addressCols
-                        )
-                        return (
-                          <TableRow
-                            key={idx}
-                            onClick={() => handleRowClick(id)}
-                            className={cn(
-                              id && 'cursor-pointer hover:bg-muted/50',
-                              missingAddress && 'bg-destructive/10',
-                              selected && 'bg-muted'
-                            )}
-                          >
-                            {row.map((cell, cellIdx) => (
-                              <TableCell
-                                key={cellIdx}
-                                className='whitespace-nowrap'
-                              >
-                                {cell ?? ''}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        )
-                      })
-                    })()}
-                  </TableBody>
-                </Table>
-              </div>
+              <ServerDataTable
+                columns={data.columns}
+                rows={data.rows}
+                selectedId={editingId}
+                onRowClick={handleRowClick}
+                dimmed={isPlaceholderData}
+                detailsTitle='Детали записи — аптека'
+              />
             ) : (
               <div className='py-16 text-center text-muted-foreground italic'>
                 Нет данных

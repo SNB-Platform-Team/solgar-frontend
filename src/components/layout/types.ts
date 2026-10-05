@@ -21,6 +21,8 @@ type BaseNavItem = {
 type NavLink = BaseNavItem & {
   url: LinkProps['to'] | (string & {})
   items?: never
+  /** Shown greyed out and not clickable (e.g. a report not ready yet). */
+  disabled?: boolean
 }
 
 // A collapsible node's children can themselves be links or further

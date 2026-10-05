@@ -1,3 +1,5 @@
+export { DataTableAuto } from './data-table-auto'
+export { ServerDataTable } from './server-data-table'
 export { DataTablePagination } from './pagination'
 export { DataTableColumnHeader } from './column-header'
 export { DataTableToolbar } from './toolbar'

@@ -136,8 +136,24 @@ export const sidebarData: SidebarData = {
           items: [
             {
               title: 'Аналитика 1C',
-              url: '/analytics-1c',
               icon: LineChart,
+              items: [
+                {
+                  title: 'Stock Movement',
+                  url: '/analytics-1c/stock-movement',
+                  icon: Warehouse,
+                },
+                {
+                  title: 'Distributor Sales',
+                  url: '/analytics-1c/distributor-sales',
+                  icon: Truck,
+                },
+                {
+                  title: 'Product Sales',
+                  url: '/analytics-1c/product-sales',
+                  icon: Package,
+                },
+              ],
             },
             {
               title: 'Power BI',
@@ -147,6 +163,7 @@ export const sidebarData: SidebarData = {
                   title: 'Solgar EN Online&Offline',
                   url: '/powerbi',
                   icon: Presentation,
+                  disabled: true,
                 },
                 {
                   title: 'Solgar Общий Обзор',

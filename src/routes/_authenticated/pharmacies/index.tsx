@@ -13,10 +13,12 @@ const pharmaciesSearchSchema = z.object({
   city: z.string().optional().catch(undefined),
   // Independent filters.
   group_company: z.string().optional().catch(undefined),
+  subgroup_company: z.string().optional().catch(undefined),
   pharmacy_category: z.string().optional().catch(undefined),
   pharmacy_type: z.string().optional().catch(undefined),
   promo: z.string().optional().catch(undefined),
   marketing_staff: z.string().optional().catch(undefined),
+  pharmacy_activeness: z.string().optional().catch(undefined),
 })
 
 export const Route = createFileRoute('/_authenticated/pharmacies/')({

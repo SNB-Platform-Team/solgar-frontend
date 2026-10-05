@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useCountryLock } from '@/hooks/use-country-lock'
@@ -14,16 +14,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { BrandSpinner } from '@/components/brand-spinner'
 import { ConfigDrawer } from '@/components/config-drawer'
+import { DataTableAuto } from '@/components/data-table/data-table-auto'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -151,6 +144,15 @@ export function SalesObs() {
   const report = data?.report ?? null
   const hasError = Boolean(error) || Boolean(data?.error)
   const showSkeleton = isLoading && !data
+
+  // DataTableAuto wants plain objects, not the backend's parallel
+  // columns/rows arrays — report.columns[i] names report.rows[*][i].
+  const tableData = useMemo(() => {
+    if (!report) return []
+    return report.rows.map((row) =>
+      Object.fromEntries(report.columns.map((col, i) => [col, row[i]]))
+    )
+  }, [report])
 
   return (
     <>
@@ -342,48 +344,14 @@ export function SalesObs() {
             ) : report && report.rows.length > 0 ? (
               <div
                 className={
-                  'scroll-x-visible max-h-[600px] overflow-y-auto rounded-md border transition-opacity' +
-                  (isFetching ? ' opacity-60' : '')
+                  isFetching ? 'opacity-60 transition-opacity' : undefined
                 }
               >
-                <Table className='min-w-max'>
-                  <TableHeader className='sticky top-0 bg-card'>
-                    <TableRow>
-                      {report.columns.map((col, idx) => (
-                        <TableHead
-                          key={col}
-                          className={
-                            'whitespace-nowrap' +
-                            (idx === report.columns.length - 1
-                              ? ' text-right'
-                              : '')
-                          }
-                        >
-                          {col}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {report.rows.map((row, rowIdx) => (
-                      <TableRow key={rowIdx}>
-                        {row.map((cell, cellIdx) => (
-                          <TableCell
-                            key={cellIdx}
-                            className={
-                              'whitespace-nowrap' +
-                              (cellIdx === row.length - 1 ? ' text-right' : '')
-                            }
-                          >
-                            {typeof cell === 'number'
-                              ? cell.toLocaleString('ru-RU')
-                              : (cell ?? '—')}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <DataTableAuto
+                  data={tableData}
+                  columns={report.columns}
+                  searchPlaceholder='Поиск по таблице...'
+                />
               </div>
             ) : (
               <div className='py-16 text-center text-muted-foreground italic'>

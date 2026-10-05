@@ -1,20 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
-  type Column,
-  type ColumnDef,
-  type SortingState,
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from '@tanstack/react-table'
-import {
   AlertCircle,
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -22,7 +10,6 @@ import {
   Search as SearchIcon,
   X,
 } from 'lucide-react'
-import { findAddressColumns, isAddressMissing } from '@/lib/address-columns'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useCountryLock } from '@/hooks/use-country-lock'
@@ -62,6 +49,7 @@ import { AddressMap } from '@/components/address-map'
 import { BrandSpinner } from '@/components/brand-spinner'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { ServerDataTable } from '@/components/data-table'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -77,16 +65,6 @@ import {
   type DoctorFormValues,
   type DoctorMutationResponse,
 } from './types'
-
-// Shape of one row in the list table below — see DoctorApiResponse.rows.
-type DoctorCell = string | number | null
-type DoctorRow = DoctorCell[]
-
-// A stable empty-array reference for useReactTable's `data` while the list
-// query hasn't resolved yet — a fresh `[]` literal on every render would
-// make TanStack Table think the data changed and recompute row models for
-// nothing.
-const EMPTY_ROWS: DoctorRow[] = []
 
 // Unlike pharmacies, this backend defaults an empty brand to "all companies" —
 // Radix Select item values can't be an empty string, so "" is mapped to this
@@ -240,35 +218,6 @@ export function Doctors() {
       },
       placeholderData: (previousData) => previousData,
     })
-
-  // TanStack Table drives the list table below — sorting only, no built-in
-  // pagination/filtering (the backend is already paginated/filtered, see
-  // the query above; getPaginationRowModel would mean fetching every row
-  // up front to sort/page client-side, which defeats that). Columns are
-  // fully dynamic (34 generic string[] columns from the backend, not a
-  // fixed schema), so they're built from data.columns rather than declared
-  // ahead of time.
-  const [sorting, setSorting] = useState<SortingState>([])
-
-  const tableColumns = useMemo<ColumnDef<DoctorRow>[]>(() => {
-    const headers = data?.columns ?? []
-    return headers.map((header, colIndex) => ({
-      id: `col-${colIndex}`,
-      accessorFn: (row) => row[colIndex],
-      header: ({ column }) => <SortableHeader column={column} title={header} />,
-      cell: ({ getValue }) => (getValue() as DoctorCell) ?? '',
-    }))
-  }, [data?.columns])
-
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({
-    data: data?.rows ?? EMPTY_ROWS,
-    columns: tableColumns,
-    state: { sorting },
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  })
 
   // Independent dropdown lists — not brand-scoped (unlike pharmacies). Also
   // feeds the entry form's Мед. представитель/Специальность/Осн.
@@ -1363,87 +1312,14 @@ export function Doctors() {
                 <BrandSpinner size={48} label='Загрузка данных' />
               </div>
             ) : data && data.rows.length > 0 ? (
-              <div
-                className={
-                  // 34 dynamic columns from the backend are far wider than
-                  // any viewport — scroll-x-visible keeps a fat, always-on,
-                  // mouse-draggable horizontal scrollbar (rather than the
-                  // thin auto-hide default) so that's discoverable, and
-                  // min-w-max on <Table> below lets it grow to its full
-                  // content width instead of squeezing 34 columns into
-                  // whatever width the container happens to have.
-                  'scroll-x-visible max-h-[600px] overflow-y-auto rounded-md border transition-opacity' +
-                  (isPlaceholderData ? ' opacity-60' : '')
-                }
-              >
-                <Table className='min-w-max'>
-                  <TableHeader className='sticky top-0 z-10 bg-muted/40'>
-                    {table.getHeaderGroups().map((headerGroup) => (
-                      <TableRow key={headerGroup.id}>
-                        {headerGroup.headers.map((header) => (
-                          <TableHead
-                            key={header.id}
-                            className='font-semibold whitespace-nowrap'
-                          >
-                            {header.isPlaceholder
-                              ? null
-                              : flexRender(
-                                  header.column.columnDef.header,
-                                  header.getContext()
-                                )}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableHeader>
-                  <TableBody>
-                    {(() => {
-                      const addressCols = findAddressColumns(data.columns)
-                      return table.getRowModel().rows.map((row) => {
-                        const original = row.original
-                        const id =
-                          original[0] != null ? String(original[0]) : ''
-                        const selected =
-                          id !== '' &&
-                          editingId != null &&
-                          id === String(editingId)
-                        const missingAddress = isAddressMissing(
-                          original,
-                          addressCols
-                        )
-                        return (
-                          <TableRow
-                            key={row.id}
-                            onClick={() => handleRowClick(id)}
-                            className={cn(
-                              id && 'cursor-pointer',
-                              missingAddress &&
-                                'bg-destructive/10 hover:bg-destructive/15',
-                              selected &&
-                                (missingAddress
-                                  ? 'bg-destructive/20 hover:bg-destructive/25'
-                                  : 'bg-primary/10 hover:bg-primary/15'),
-                              selected && 'border-l-4 border-l-primary'
-                            )}
-                          >
-                            {row.getVisibleCells().map((cell) => (
-                              <TableCell
-                                key={cell.id}
-                                className='py-2.5 whitespace-nowrap'
-                              >
-                                {flexRender(
-                                  cell.column.columnDef.cell,
-                                  cell.getContext()
-                                )}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        )
-                      })
-                    })()}
-                  </TableBody>
-                </Table>
-              </div>
+              <ServerDataTable
+                columns={data.columns}
+                rows={data.rows}
+                selectedId={editingId}
+                onRowClick={handleRowClick}
+                dimmed={isPlaceholderData}
+                detailsTitle='Детали записи — врач'
+              />
             ) : (
               <div className='py-16 text-center text-muted-foreground italic'>
                 Нет данных
@@ -1479,37 +1355,6 @@ export function Doctors() {
         </Card>
       </Main>
     </>
-  )
-}
-
-// Clickable column header for the list table — toggles asc/desc/unsorted
-// (TanStack's own 3-state cycle) and shows which state it's in via a lucide
-// arrow icon, same convention the task asked for.
-function SortableHeader<TData>({
-  column,
-  title,
-}: {
-  column: Column<TData, unknown>
-  title: string
-}) {
-  const sorted = column.getIsSorted()
-  return (
-    <Button
-      type='button'
-      variant='ghost'
-      size='sm'
-      className='-ms-2 h-8 gap-1 px-2 font-semibold'
-      onClick={column.getToggleSortingHandler()}
-    >
-      {title}
-      {sorted === 'asc' ? (
-        <ArrowUp className='size-3.5' />
-      ) : sorted === 'desc' ? (
-        <ArrowDown className='size-3.5' />
-      ) : (
-        <ArrowUpDown className='size-3.5 text-muted-foreground' />
-      )}
-    </Button>
   )
 }
 
