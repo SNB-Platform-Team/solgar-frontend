@@ -29,51 +29,60 @@ import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
+import { type StorageOptionsResponse } from '@/features/distributor-upload/types'
 import {
-  type SalesObsCascadeOptions,
-  type SalesObsFilters,
-  type SalesObsResponse,
+  type DistributorReportFilters,
+  type DistributorReportOption,
+  type DistributorReportResponse,
 } from './types'
 
-// Radix Select item values can't be an empty string, but "all chains" /
-// "all countries" are represented server-side by an empty query param.
+// Radix Select item values can't be an empty string, but "all X" is
+// represented server-side by an empty query param.
 const ALL = '__ALL__'
 
-// Fallback shown before the first response arrives (values match the
-// backend's own SL/OS/BN codes from the API example).
-const DEFAULT_COMP_TYPES = [
-  { value: 'SL', label: 'SOLGAR' },
-  { value: 'OS', label: 'OBF' },
-  { value: 'BN', label: 'NATURES BOUNTY' },
+// Fallback shown before the first response arrives — the real dropdown
+// options (value + label) come from the backend's own options.rep_types/
+// options.operations, see `repTypes`/`operations` below.
+const DEFAULT_REP_TYPES: DistributorReportOption[] = [
+  { value: 'DISTRIBUTOR_REPORT', label: 'По дистрибьюторам' },
+  { value: 'CITY_REPORT', label: 'По городам' },
+  { value: 'ALL_PRODUCTS_REPORT', label: 'По всем товарам' },
+  { value: 'BRAND_REPORT', label: 'По брендам' },
 ]
 
-// Placeholder rows the backend includes for "no city on file" — filtered
-// out of the Город dropdown rather than shown as a selectable option.
-const JUNK_CITY_VALUES = new Set(['(пусто)', '(empty)', '-', ''])
+const DEFAULT_OPERATIONS: DistributorReportOption[] = [
+  { value: 'STOCK', label: 'Остатки' },
+  { value: 'SALE', label: 'Продажи' },
+]
 
-const DEFAULT_FILTERS: SalesObsFilters = {
-  comp_type: 'SL',
+// Fixed per the backend's own enum — not echoed back under `options`.
+const BRAND_OPTIONS = ['SOLGAR', 'BOUNTY', 'OTHER']
+
+const DEFAULT_FILTERS: DistributorReportFilters = {
+  rep_type: 'DISTRIBUTOR_REPORT',
+  operation_type: 'STOCK',
+  distributor: '',
+  city: '',
+  brand: '',
+  country: '',
+  product: '',
   begin: '',
   end: '',
-  chain: '',
-  country: '',
-  area: '',
-  region: '',
-  city: '',
-  main_group: '',
-  sub_group: '',
-  product_name: '',
 }
 
 export function SalesObs() {
   // Draft filters — edited freely by the user, only sent to the backend once
   // "Сформировать отчёт" is pressed (see `committed` below).
-  const [filters, setFilters] = useState<SalesObsFilters>(DEFAULT_FILTERS)
+  const [filters, setFilters] =
+    useState<DistributorReportFilters>(DEFAULT_FILTERS)
   const [committed, setCommitted] = useState<{
     run: boolean
-    filters: SalesObsFilters
+    filters: DistributorReportFilters
   }>({ run: false, filters: DEFAULT_FILTERS })
   const [periodMissing, setPeriodMissing] = useState(false)
+
+  const setFilter = (key: keyof DistributorReportFilters, value: string) =>
+    setFilters((prev) => ({ ...prev, [key]: value }))
 
   // Country access is per-user — everyone but an admin is pinned to their
   // own country and can't change it (see useCountryLock).
@@ -81,160 +90,50 @@ export function SalesObs() {
   const locked = countryLock.locked
   const effectiveCountry = locked ? countryLock.userCountry : filters.country
 
-  const setFilter = (key: keyof SalesObsFilters, value: string) =>
-    setFilters((prev) => ({ ...prev, [key]: value }))
+  // Страна drives Дистрибьютор (prm_storages for that country) — changing
+  // it invalidates whatever distributor was picked, same cascade as
+  // Distributor Upload's own Страна→Дистрибьютор.
+  const setCountry = (value: string) =>
+    setFilters((prev) => ({ ...prev, country: value, distributor: '' }))
 
-  // Компания drives which сети/страны/группы even exist (they all come from
-  // the same comp_type-scoped `options`), so changing it (in the form,
-  // before "Сформировать отчёт" is pressed) invalidates whatever was picked
-  // for those — same cascading idea as Chain Report's Страна. Продукт in
-  // turn depends on Основная группа/Подгруппа, so it's reset too. Область/
-  // Регион/Город are NOT cascaded off Компания or Страна — see the flat
-  // queries below, they're independent, always-populated dropdowns.
-  const setCompType = (value: string) =>
-    setFilters((prev) => ({
-      ...prev,
-      comp_type: value,
-      chain: '',
-      country: '',
-      main_group: '',
-      sub_group: '',
-      product_name: '',
-    }))
-
-  // Основная группа/Подгруппа are flat siblings (not cascaded off each
-  // other), but Продукт depends on both together, so picking either one
-  // invalidates whatever Продукт was selected.
-  const setMainGroup = (value: string) =>
-    setFilters((prev) => ({ ...prev, main_group: value, product_name: '' }))
-
-  const setSubGroup = (value: string) =>
-    setFilters((prev) => ({ ...prev, sub_group: value, product_name: '' }))
-
-  // Dropdown options for the *current draft* comp_type — kept separate from
-  // the report query below (which only reflects the last *committed*
-  // filters) so Сеть/Страна refresh the moment Компания changes, without
-  // waiting for "Сформировать отчёт".
-  const { data: optionsData } = useQuery<SalesObsResponse>({
-    queryKey: ['sales-obs-options', filters.comp_type],
+  const { data: distributorOptions } = useQuery<StorageOptionsResponse>({
+    queryKey: ['storage-options', effectiveCountry],
     queryFn: async () => {
-      const params = new URLSearchParams()
-      params.set('comp_type', filters.comp_type)
-      params.set('begin', '')
-      params.set('end', '')
-      params.set('chain', '')
-      params.set('country', '')
-      const res = await api.get<SalesObsResponse>(
-        `/sales/api/sales-obs/?${params}`
+      const params = new URLSearchParams({ country: effectiveCountry })
+      const res = await api.get<StorageOptionsResponse>(
+        `/sales/api/storage-options/?${params}`
       )
       return res.data
     },
+    enabled: Boolean(effectiveCountry),
   })
 
-  // Область/Регион/Город — flat, independent dropdowns: each fetched once
-  // on mount (no country/area/region params, so the backend returns its
-  // full list) and never re-fetched or reset by any other filter.
-  const { data: areaOptions } = useQuery<SalesObsCascadeOptions>({
-    queryKey: ['sales-obs-filter-area'],
-    queryFn: async () => {
-      const res = await api.get<SalesObsCascadeOptions>(
-        '/sales/api/sales-obs/filter-options/?level=area'
-      )
-      return res.data
-    },
-    staleTime: Infinity,
-  })
+  const { data, isLoading, isFetching, error } =
+    useQuery<DistributorReportResponse>({
+      queryKey: ['distributor-report', committed.run, committed.filters],
+      queryFn: async () => {
+        const f = committed.filters
+        const params = new URLSearchParams()
+        if (committed.run) params.set('run', '1')
+        params.set('rep_type', f.rep_type)
+        params.set('operation_type', f.operation_type)
+        params.set('distributor', f.distributor)
+        params.set('city', f.city)
+        params.set('brand', f.brand)
+        params.set('country', f.country)
+        params.set('product', f.product)
+        params.set('begin', f.begin)
+        params.set('end', f.end)
+        const res = await api.get<DistributorReportResponse>(
+          `/sales/api/distributor-report/?${params}`
+        )
+        return res.data
+      },
+      placeholderData: (previousData) => previousData,
+    })
 
-  const { data: regionOptions } = useQuery<SalesObsCascadeOptions>({
-    queryKey: ['sales-obs-filter-region'],
-    queryFn: async () => {
-      const res = await api.get<SalesObsCascadeOptions>(
-        '/sales/api/sales-obs/filter-options/?level=region'
-      )
-      return res.data
-    },
-    staleTime: Infinity,
-  })
-
-  const { data: cityOptions } = useQuery<SalesObsCascadeOptions>({
-    queryKey: ['sales-obs-filter-city'],
-    queryFn: async () => {
-      const res = await api.get<SalesObsCascadeOptions>(
-        '/sales/api/sales-obs/filter-options/?level=city'
-      )
-      return res.data
-    },
-    staleTime: Infinity,
-  })
-
-  // The city list in particular carries a handful of placeholder rows for
-  // "no city on file" — not real options, so they're dropped before display.
-  const cityChoices = (cityOptions?.options ?? []).filter(
-    (o) => !JUNK_CITY_VALUES.has(o.trim())
-  )
-
-  // Продукт — the one cascading dropdown here: refetches off the *draft*
-  // Основная группа/Подгруппа (either or both may be empty, in which case
-  // the backend just returns its full product list, same as on first load).
-  const { data: productNameOptions } = useQuery<SalesObsCascadeOptions>({
-    queryKey: [
-      'sales-obs-filter-product-name',
-      filters.main_group,
-      filters.sub_group,
-    ],
-    queryFn: async () => {
-      const params = new URLSearchParams({ level: 'product_name' })
-      if (filters.main_group) params.set('main_group', filters.main_group)
-      if (filters.sub_group) params.set('sub_group', filters.sub_group)
-      const res = await api.get<SalesObsCascadeOptions>(
-        `/sales/api/sales-obs/filter-options/?${params}`
-      )
-      return res.data
-    },
-  })
-
-  const { data, isLoading, isFetching, error } = useQuery<SalesObsResponse>({
-    queryKey: [
-      'sales-obs',
-      committed.run,
-      committed.filters.comp_type,
-      committed.filters.begin,
-      committed.filters.end,
-      committed.filters.chain,
-      committed.filters.country,
-      committed.filters.area,
-      committed.filters.region,
-      committed.filters.city,
-      committed.filters.main_group,
-      committed.filters.sub_group,
-      committed.filters.product_name,
-    ],
-    queryFn: async () => {
-      const params = new URLSearchParams()
-      params.set('comp_type', committed.filters.comp_type)
-      params.set('begin', committed.filters.begin)
-      params.set('end', committed.filters.end)
-      params.set('chain', committed.filters.chain)
-      params.set('country', committed.filters.country)
-      params.set('area', committed.filters.area)
-      params.set('region', committed.filters.region)
-      params.set('city', committed.filters.city)
-      params.set('main_group', committed.filters.main_group)
-      params.set('sub_group', committed.filters.sub_group)
-      params.set('product_name', committed.filters.product_name)
-      const res = await api.get<SalesObsResponse>(
-        `/sales/api/sales-obs/?${params}`
-      )
-      return res.data
-    },
-    placeholderData: (previousData) => previousData,
-  })
-
-  const compTypes = optionsData?.comp_types ?? DEFAULT_COMP_TYPES
-  const chains = optionsData?.options.chains ?? []
-  const countries = optionsData?.options.countries ?? []
-  const mainGroups = optionsData?.options.main_groups ?? []
-  const subGroups = optionsData?.options.sub_groups ?? []
+  const repTypes = data?.options.rep_types ?? DEFAULT_REP_TYPES
+  const operations = data?.options.operations ?? DEFAULT_OPERATIONS
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -268,7 +167,7 @@ export function SalesObs() {
             Просмотр Сток и Продажа
           </h1>
           <p className='text-muted-foreground'>
-            Помесячный сводный отчёт по продажам
+            Отчёт по дистрибьюторам — сток и продажи за период
           </p>
         </div>
 
@@ -278,106 +177,7 @@ export function SalesObs() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className='space-y-4'>
-              <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4'>
-                <div className='space-y-1.5'>
-                  <Label>Тип компании</Label>
-                  <Select value={filters.comp_type} onValueChange={setCompType}>
-                    <SelectTrigger className='w-full'>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {compTypes.map((c) => (
-                        <SelectItem key={c.value} value={c.value}>
-                          {c.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Страна always comes first — standard order across every
-                    filter/upload screen in the app, chain/geo params follow it. */}
-                <div className='space-y-1.5'>
-                  <Label>Страна</Label>
-                  <FilterSelect
-                    value={effectiveCountry}
-                    options={locked ? [countryLock.userCountry] : countries}
-                    onChange={(v) => setFilter('country', v)}
-                    placeholder='Все страны'
-                    disabled={locked}
-                  />
-                </div>
-
-                <div className='space-y-1.5'>
-                  <Label>Аптечная сеть</Label>
-                  <FilterSelect
-                    value={filters.chain}
-                    options={chains}
-                    onChange={(v) => setFilter('chain', v)}
-                    placeholder='Все сети'
-                  />
-                </div>
-
-                {/* Область/Регион/Город are flat and independent — each is
-                    its own full list from the backend, not narrowed by
-                    Страна or by one another. */}
-                <div className='space-y-1.5'>
-                  <Label>Область</Label>
-                  <FilterSelect
-                    value={filters.area}
-                    options={areaOptions?.options ?? []}
-                    onChange={(v) => setFilter('area', v)}
-                  />
-                </div>
-
-                <div className='space-y-1.5'>
-                  <Label>Регион</Label>
-                  <FilterSelect
-                    value={filters.region}
-                    options={regionOptions?.options ?? []}
-                    onChange={(v) => setFilter('region', v)}
-                  />
-                </div>
-
-                <div className='space-y-1.5'>
-                  <Label>Город</Label>
-                  <FilterSelect
-                    value={filters.city}
-                    options={cityChoices}
-                    onChange={(v) => setFilter('city', v)}
-                  />
-                </div>
-
-                {/* Основная группа/Подгруппа are flat, comp_type-scoped
-                    dropdowns; Продукт is the one cascading field here,
-                    narrowed by whichever of the two above are set. */}
-                <div className='space-y-1.5'>
-                  <Label>Основная группа</Label>
-                  <FilterSelect
-                    value={filters.main_group}
-                    options={mainGroups}
-                    onChange={setMainGroup}
-                  />
-                </div>
-
-                <div className='space-y-1.5'>
-                  <Label>Подгруппа</Label>
-                  <FilterSelect
-                    value={filters.sub_group}
-                    options={subGroups}
-                    onChange={setSubGroup}
-                  />
-                </div>
-
-                <div className='space-y-1.5'>
-                  <Label>Продукт</Label>
-                  <FilterSelect
-                    value={filters.product_name}
-                    options={productNameOptions?.options ?? []}
-                    onChange={(v) => setFilter('product_name', v)}
-                  />
-                </div>
-
+              <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
                 <div className='space-y-1.5'>
                   <Label>Дата с</Label>
                   <Input
@@ -387,7 +187,6 @@ export function SalesObs() {
                     required
                   />
                 </div>
-
                 <div className='space-y-1.5'>
                   <Label>Дата по</Label>
                   <Input
@@ -404,6 +203,104 @@ export function SalesObs() {
                   Укажите обе даты периода — «Дата с» и «Дата по».
                 </p>
               )}
+
+              <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+                <div className='space-y-1.5'>
+                  <Label>Тип отчёта</Label>
+                  <Select
+                    value={filters.rep_type}
+                    onValueChange={(v) => setFilter('rep_type', v)}
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {repTypes.map((rt) => (
+                        <SelectItem key={rt.value} value={rt.value}>
+                          {rt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className='space-y-1.5'>
+                  <Label>Тип операции</Label>
+                  <Select
+                    value={filters.operation_type}
+                    onValueChange={(v) => setFilter('operation_type', v)}
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {operations.map((op) => (
+                        <SelectItem key={op.value} value={op.value}>
+                          {op.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Страна always comes first — standard order across every
+                    filter/upload screen in the app, Дистрибьютор cascades
+                    off it next. */}
+                <div className='space-y-1.5'>
+                  <Label>Страна</Label>
+                  <FilterSelect
+                    value={effectiveCountry}
+                    options={
+                      locked ? [countryLock.userCountry] : countryLock.countries
+                    }
+                    onChange={setCountry}
+                    placeholder='Все страны'
+                    disabled={locked}
+                  />
+                </div>
+
+                <div className='space-y-1.5'>
+                  <Label>Дистрибьютор</Label>
+                  <FilterSelect
+                    value={filters.distributor}
+                    options={distributorOptions?.storages ?? []}
+                    onChange={(v) => setFilter('distributor', v)}
+                    placeholder={
+                      effectiveCountry
+                        ? 'Все дистрибьюторы'
+                        : 'Сначала выберите страну'
+                    }
+                    disabled={!effectiveCountry}
+                  />
+                </div>
+
+                <div className='space-y-1.5'>
+                  <Label>Компания</Label>
+                  <FilterSelect
+                    value={filters.brand}
+                    options={BRAND_OPTIONS}
+                    onChange={(v) => setFilter('brand', v)}
+                  />
+                </div>
+
+                <div className='space-y-1.5'>
+                  <Label>Город</Label>
+                  <Input
+                    value={filters.city}
+                    onChange={(e) => setFilter('city', e.target.value)}
+                    placeholder='Город'
+                  />
+                </div>
+
+                <div className='space-y-1.5'>
+                  <Label>Товар</Label>
+                  <Input
+                    value={filters.product}
+                    onChange={(e) => setFilter('product', e.target.value)}
+                    placeholder='Товар'
+                  />
+                </div>
+              </div>
 
               <div className='flex justify-end'>
                 <Button type='submit' disabled={isFetching}>
@@ -445,21 +342,22 @@ export function SalesObs() {
             ) : report && report.rows.length > 0 ? (
               <div
                 className={
-                  'max-h-[600px] overflow-auto rounded-md border transition-opacity' +
+                  'scroll-x-visible max-h-[600px] overflow-y-auto rounded-md border transition-opacity' +
                   (isFetching ? ' opacity-60' : '')
                 }
               >
-                <Table>
-                  <TableHeader className='sticky top-0 z-20 bg-card'>
+                <Table className='min-w-max'>
+                  <TableHeader className='sticky top-0 bg-card'>
                     <TableRow>
                       {report.columns.map((col, idx) => (
                         <TableHead
                           key={col}
-                          className={pivotCellClass(
-                            idx,
-                            report.columns.length,
-                            true
-                          )}
+                          className={
+                            'whitespace-nowrap' +
+                            (idx === report.columns.length - 1
+                              ? ' text-right'
+                              : '')
+                          }
                         >
                           {col}
                         </TableHead>
@@ -472,16 +370,10 @@ export function SalesObs() {
                         {row.map((cell, cellIdx) => (
                           <TableCell
                             key={cellIdx}
-                            title={
-                              cellIdx < 2 && cell != null
-                                ? String(cell)
-                                : undefined
+                            className={
+                              'whitespace-nowrap' +
+                              (cellIdx === row.length - 1 ? ' text-right' : '')
                             }
-                            className={pivotCellClass(
-                              cellIdx,
-                              row.length,
-                              false
-                            )}
                           >
                             {typeof cell === 'number'
                               ? cell.toLocaleString('ru-RU')
@@ -505,29 +397,10 @@ export function SalesObs() {
   )
 }
 
-// First two columns (PRODUCT, chain) are pinned to the left so they stay
-// visible while scrolling through the twelve month columns; numeric columns
-// (everything from index 2 on) are right-aligned, and the last column
-// (Total) is bolded to stand out.
-function pivotCellClass(idx: number, length: number, isHeader: boolean) {
-  const classes = ['whitespace-nowrap']
-  if (idx === 0) {
-    classes.push('sticky left-0 w-40 truncate bg-card')
-    classes.push(isHeader ? 'z-30' : 'z-10')
-  } else if (idx === 1) {
-    classes.push('sticky left-40 w-40 truncate border-r bg-card')
-    classes.push(isHeader ? 'z-30' : 'z-10')
-  } else {
-    classes.push('text-right')
-  }
-  if (idx === length - 1) classes.push('font-bold')
-  return classes.join(' ')
-}
-
 // A single "<Select/>" filter field with a built-in "Все" (no filter)
-// option — same pattern as Chain Report's FilterSelect. `value`/`onChange`
-// use '' for "no filter" (matching the draft filters' plain strings),
-// mapped to and from the ALL sentinel Radix Select requires for item values.
+// option — same pattern used across every report screen in this app.
+// `value`/`onChange` use '' for "no filter", mapped to/from the ALL
+// sentinel Radix Select requires for item values.
 function FilterSelect({
   value,
   options,
