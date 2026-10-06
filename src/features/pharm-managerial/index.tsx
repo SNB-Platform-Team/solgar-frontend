@@ -4,7 +4,6 @@ import { api } from '@/lib/api'
 import { useCountryLock } from '@/hooks/use-country-lock'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -24,6 +23,7 @@ import {
 } from '@/components/ui/table'
 import { BrandSpinner } from '@/components/brand-spinner'
 import { ConfigDrawer } from '@/components/config-drawer'
+import { DateInput } from '@/components/date-input'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -325,18 +325,16 @@ export function PharmManagerial() {
           <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
             <div className='space-y-1.5'>
               <Label>Дата с</Label>
-              <Input
-                type='date'
+              <DateInput
                 value={filters.begin}
-                onChange={(e) => setFilter('begin', e.target.value)}
+                onChange={(v) => setFilter('begin', v)}
               />
             </div>
             <div className='space-y-1.5'>
               <Label>Дата по</Label>
-              <Input
-                type='date'
+              <DateInput
                 value={filters.end}
-                onChange={(e) => setFilter('end', e.target.value)}
+                onChange={(v) => setFilter('end', v)}
               />
             </div>
           </div>

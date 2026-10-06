@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { BrandSpinner } from '@/components/brand-spinner'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { DataTableAuto } from '@/components/data-table/data-table-auto'
+import { DateInput } from '@/components/date-input'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -182,19 +183,17 @@ export function SalesObs() {
               <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
                 <div className='space-y-1.5'>
                   <Label>Дата с</Label>
-                  <Input
-                    type='date'
+                  <DateInput
                     value={filters.begin}
-                    onChange={(e) => setFilter('begin', e.target.value)}
+                    onChange={(v) => setFilter('begin', v)}
                     required
                   />
                 </div>
                 <div className='space-y-1.5'>
                   <Label>Дата по</Label>
-                  <Input
-                    type='date'
+                  <DateInput
                     value={filters.end}
-                    onChange={(e) => setFilter('end', e.target.value)}
+                    onChange={(v) => setFilter('end', v)}
                     required
                   />
                 </div>

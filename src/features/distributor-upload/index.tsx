@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/table'
 import { BrandSpinner } from '@/components/brand-spinner'
 import { ConfigDrawer } from '@/components/config-drawer'
+import { DateInput } from '@/components/date-input'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -299,22 +300,20 @@ export function DistributorUpload() {
     },
   })
 
-  // Дата с/Дата по cover a single month of distributor data — Дата с must
-  // be that month's 1st, Дата по must fall later in the same month. Shared
-  // by both Предпросмотр and Сохранить below. Parsed as plain yyyy-MM-dd
-  // strings (not `new Date(...)`) so a UTC-vs-local day shift can't slip a
-  // valid date past the check.
+  // Дата с/Дата по can be any days, across any months — the only rule is
+  // that Дата с comes strictly before Дата по. Shared by both Предпросмотр
+  // and Сохранить below. Both are yyyy-MM-dd strings, which `new Date`
+  // parses the same way (as UTC midnight), so comparing them is safe.
   const validateDateRange = (): string | null => {
-    const [begYear, begMonth, begDay] = beginDate.split('-')
-    const [endYear, endMonth, endDay] = endDate.split('-')
-    if (begDay !== '01') {
-      return 'Ошибка: «Дата с» должна быть первым днём месяца (01).'
+    // An empty <input type='date'> parses to an Invalid Date, which would
+    // slip past the comparison below — so require both explicitly.
+    if (!beginDate || !endDate) {
+      return 'Ошибка: укажите «Дата с» и «Дата по».'
     }
-    if (begMonth !== endMonth || begYear !== endYear) {
-      return 'Ошибка: «Дата с» и «Дата по» должны быть в одном месяце.'
-    }
-    if (Number(endDay) <= 1) {
-      return 'Ошибка: «Дата по» должна быть больше первого дня месяца.'
+    const begin = new Date(beginDate)
+    const end = new Date(endDate)
+    if (begin >= end) {
+      return 'Ошибка: «Дата с» должна быть раньше «Дата по».'
     }
     return null
   }
@@ -495,20 +494,15 @@ export function DistributorUpload() {
 
                 <div className='space-y-1.5'>
                   <Label>Дата с</Label>
-                  <Input
-                    type='date'
+                  <DateInput
                     value={beginDate}
-                    onChange={(e) => setBeginDate(e.target.value)}
+                    onChange={(v) => setBeginDate(v)}
                   />
                 </div>
 
                 <div className='space-y-1.5'>
                   <Label>Дата по</Label>
-                  <Input
-                    type='date'
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
+                  <DateInput value={endDate} onChange={(v) => setEndDate(v)} />
                 </div>
 
                 <div className='space-y-1.5'>

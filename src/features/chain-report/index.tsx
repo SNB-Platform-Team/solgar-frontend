@@ -19,6 +19,7 @@ import { BrandSpinner } from '@/components/brand-spinner'
 import { ChainCombobox } from '@/components/chain-combobox'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { DataTableAuto } from '@/components/data-table/data-table-auto'
+import { DateInput } from '@/components/date-input'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -56,7 +57,6 @@ const DEFAULT_FILTERS: ChainSalesReportFilters = {
   chain: '',
   city: '',
   product: '',
-  medrep: '',
   begin: '',
   end: '',
 }
@@ -104,7 +104,6 @@ export function ChainReport() {
         params.set('chain', f.chain)
         params.set('city', f.city)
         params.set('product', f.product)
-        params.set('medrep', f.medrep)
         params.set('begin', f.begin)
         params.set('end', f.end)
         const res = await api.get<ChainSalesReportResponse>(
@@ -172,19 +171,17 @@ export function ChainReport() {
               <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
                 <div className='space-y-1.5'>
                   <Label>Дата с</Label>
-                  <Input
-                    type='date'
+                  <DateInput
                     value={filters.begin}
-                    onChange={(e) => setFilter('begin', e.target.value)}
+                    onChange={(v) => setFilter('begin', v)}
                     required
                   />
                 </div>
                 <div className='space-y-1.5'>
                   <Label>Дата по</Label>
-                  <Input
-                    type='date'
+                  <DateInput
                     value={filters.end}
-                    onChange={(e) => setFilter('end', e.target.value)}
+                    onChange={(v) => setFilter('end', v)}
                     required
                   />
                 </div>
@@ -276,15 +273,6 @@ export function ChainReport() {
                     value={filters.product}
                     onChange={(e) => setFilter('product', e.target.value)}
                     placeholder='Товар'
-                  />
-                </div>
-
-                <div className='space-y-1.5'>
-                  <Label>Мед. представитель</Label>
-                  <Input
-                    value={filters.medrep}
-                    onChange={(e) => setFilter('medrep', e.target.value)}
-                    placeholder='Мед. представитель'
                   />
                 </div>
               </div>

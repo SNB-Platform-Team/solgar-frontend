@@ -50,6 +50,7 @@ import { BrandSpinner } from '@/components/brand-spinner'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { ServerDataTable } from '@/components/data-table'
+import { DateInput } from '@/components/date-input'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -945,11 +946,10 @@ export function Pharmacies() {
                     </div>
                     <div className='space-y-1.5'>
                       <Label>Дата активации</Label>
-                      <Input
-                        type='date'
+                      <DateInput
                         value={form.pharmacy_activation_date}
-                        onChange={(e) =>
-                          setField('pharmacy_activation_date', e.target.value)
+                        onChange={(v) =>
+                          setField('pharmacy_activation_date', v)
                         }
                       />
                     </div>

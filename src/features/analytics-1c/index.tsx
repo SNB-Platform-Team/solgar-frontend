@@ -9,9 +9,9 @@ import { ThemeSwitch } from '@/components/theme-switch'
 // standalone=true hides Superset's own nav/header chrome inside the iframe.
 const SUPERSET_BASE_URL = 'https://94.139.254.16.sslip.io/superset/dashboard'
 
-const STOCK_MOVEMENT_URL = `${SUPERSET_BASE_URL}/3/?native_filters_key=nt2qgLlTpyE&standalone=true`
-const DISTRIBUTOR_SALES_URL = `${SUPERSET_BASE_URL}/4/?native_filters_key=fnL1DdIy7jQ&standalone=true`
-const PRODUCT_SALES_URL = `${SUPERSET_BASE_URL}/1/?native_filters_key=VEdKovzOu7M&standalone=true`
+const STOCK_MOVEMENT_URL = `${SUPERSET_BASE_URL}/1/?native_filters_key=VEdKovzOu7M&standalone=true`
+const DISTRIBUTOR_SALES_URL = `${SUPERSET_BASE_URL}/3/?native_filters_key=nt2qgLlTpyE&standalone=true`
+const PRODUCT_SALES_URL = `${SUPERSET_BASE_URL}/4/?native_filters_key=fnL1DdIy7jQ&standalone=true`
 
 function SupersetDashboardPage({ title, src }: { title: string; src: string }) {
   return (
@@ -30,6 +30,7 @@ function SupersetDashboardPage({ title, src }: { title: string; src: string }) {
         </div>
 
         <iframe
+          key={src}
           src={src}
           title={title}
           width='100%'

@@ -45,7 +45,6 @@ export interface ChainSalesReportFilters {
   chain: string
   city: string
   product: string
-  medrep: string
   begin: string
   end: string
 }

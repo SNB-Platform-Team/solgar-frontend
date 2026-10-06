@@ -33,6 +33,7 @@ import {
 import { BrandSpinner } from '@/components/brand-spinner'
 import { ChainCombobox } from '@/components/chain-combobox'
 import { ConfigDrawer } from '@/components/config-drawer'
+import { DateInput } from '@/components/date-input'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -358,10 +359,9 @@ export function SalesUpload() {
 
                 <div className='space-y-1.5'>
                   <Label>Дата отчёта</Label>
-                  <Input
-                    type='date'
+                  <DateInput
                     value={reportDate}
-                    onChange={(e) => setReportDate(e.target.value)}
+                    onChange={(v) => setReportDate(v)}
                   />
                 </div>
 
