@@ -3,6 +3,7 @@ import {
   type ColumnDef,
   type ColumnFiltersState,
   type SortingState,
+  type VisibilityState,
   flexRender,
   getCoreRowModel,
   getFacetedRowModel,
@@ -12,8 +13,16 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { X } from 'lucide-react'
+import { SlidersHorizontal, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import {
   Sheet,
@@ -68,6 +77,9 @@ export function DataTableAuto({
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')
+  // Columns hidden via a header's Hide item — brought back through the
+  // Столбцы menu in the toolbar.
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [selectedRow, setSelectedRow] = useState<AutoRow | null>(null)
 
   const columnKeys = useMemo(
@@ -106,6 +118,7 @@ export function DataTableAuto({
     () =>
       columnKeys.map((key) => ({
         id: key,
+        meta: { label: key },
         // accessorFn (not accessorKey) — column headers can contain
         // characters accessorKey's dot-path syntax would otherwise trip on.
         accessorFn: (row) => row[key],
@@ -130,10 +143,11 @@ export function DataTableAuto({
   const table = useReactTable({
     data,
     columns: tableColumns,
-    state: { sorting, columnFilters, globalFilter },
+    state: { sorting, columnFilters, globalFilter, columnVisibility },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
+    onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -185,6 +199,37 @@ export function DataTableAuto({
             <X className='ms-1 size-4' />
           </Button>
         )}
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button variant='outline' size='sm' className='ms-auto h-8'>
+              <SlidersHorizontal className='size-4' />
+              Столбцы
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align='end'
+            className='max-h-96 w-56 overflow-y-auto'
+          >
+            <DropdownMenuLabel>Показать столбцы</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {table
+              .getAllColumns()
+              .filter((column) => column.getCanHide())
+              .map((column) => (
+                <DropdownMenuCheckboxItem
+                  key={column.id}
+                  className='capitalize'
+                  checked={column.getIsVisible()}
+                  onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                  // Keep the menu open so several columns can be toggled
+                  // in one go.
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {column.columnDef.meta?.label ?? column.id}
+                </DropdownMenuCheckboxItem>
+              ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className='scroll-x-visible overflow-hidden rounded-md border'>
@@ -226,7 +271,7 @@ export function DataTableAuto({
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={tableColumns.length}
+                  colSpan={table.getVisibleLeafColumns().length || 1}
                   className='h-24 text-center text-muted-foreground'
                 >
                   Нет данных
