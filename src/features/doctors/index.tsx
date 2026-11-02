@@ -4,14 +4,13 @@ import { getRouteApi } from '@tanstack/react-router'
 import {
   AlertCircle,
   CheckCircle2,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Search as SearchIcon,
   X,
 } from 'lucide-react'
 import { api } from '@/lib/api'
-import { cn } from '@/lib/utils'
+import { authMeQueryOptions } from '@/lib/auth'
 import { useCountryLock } from '@/hooks/use-country-lock'
 import { Alert, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -22,11 +21,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -73,9 +67,6 @@ import {
 const ALL_BRAND = '__ALL__'
 const DEFAULT_BRAND = ''
 
-// Same sentinel idea for every "Все" (no filter) dropdown in the filter panel.
-const ALL = '__ALL__'
-
 // And for the entry form's own optional dropdowns below — "not set" is a
 // legitimate value there too, just without a "Все" label attached to it.
 const EMPTY = '__EMPTY__'
@@ -92,17 +83,18 @@ const CLINIC_STATUS_OPTIONS = ['GOLD', 'PLATINUM', 'SILVER']
 const BRAND_OPTIONS = ['SOLGAR', 'NATURES BOUNTY']
 const DEFAULT_FORM_BRAND = 'SOLGAR'
 
+// Today as yyyy-MM-dd (local time) — Дата активации's default.
+const todayISO = () => {
+  const d = new Date()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mm}-${dd}`
+}
+
 interface DoctorsSearch {
   brand?: string
   page?: number
   search?: string
-  country?: string
-  area?: string
-  region?: string
-  city?: string
-  specialty?: string
-  unified_specialty?: string
-  medrep?: string
 }
 
 const DEFAULT_DOCTOR_FORM: DoctorFormValues = {
@@ -113,7 +105,7 @@ const DEFAULT_DOCTOR_FORM: DoctorFormValues = {
   unified_specialty: '',
   specialty: '',
   position_regalia: '',
-  doctor_date: '',
+  doctor_date: todayISO(),
   activeness: '',
   doctor_tel: '',
   doctor_email: '',
@@ -134,20 +126,60 @@ const DEFAULT_DOCTOR_FORM: DoctorFormValues = {
   full_address: '',
   country_code: '',
   building_type: '',
+  administrative_area_name: '',
+  sub_administrative_area_name: '',
+  geocode_city: '',
 }
 
 // clinic_count/point_x/point_y are edited as plain strings (they're just
 // text/number <Input>s) but are numeric server-side — this converts a blank
 // string to null and everything else to a Number right before a
 // create/update request goes out, so the backend never has to coerce it.
+//
+// geocode_city is display-only (the readonly Город under Адрес) — there's no
+// such DB column, so it's never sent.
 function buildDoctorPayload(form: DoctorFormValues) {
   const toNumberOrNull = (v: string) => (v.trim() === '' ? null : Number(v))
+  const { geocode_city, ...rest } = form
   return {
-    ...form,
+    ...rest,
     clinic_count: toNumberOrNull(form.clinic_count),
     point_x: toNumberOrNull(form.point_x),
     point_y: toNumberOrNull(form.point_y),
   }
+}
+
+// Fields that must be filled before a card can be staged (Добавить) or
+// updated (Обновить), with their form labels for the error message.
+// Должность / Название 1 / Ключевой человек / Количество stay optional.
+const REQUIRED_FIELDS: { key: keyof DoctorFormValues; label: string }[] = [
+  { key: 'brand', label: 'Компания' },
+  { key: 'country', label: 'Страна' },
+  { key: 'area', label: 'Область' },
+  { key: 'region', label: 'Регион' },
+  { key: 'city', label: 'Город' },
+  { key: 'doctor_name', label: 'Имя доктора' },
+  { key: 'medrep', label: 'Мед. представитель' },
+  { key: 'category', label: 'Категория врачей' },
+  { key: 'unified_specialty', label: 'Основная специальность' },
+  { key: 'specialty', label: 'Специальность' },
+  { key: 'activeness', label: 'Активность' },
+  { key: 'doctor_date', label: 'Дата активации' },
+  { key: 'clinic_status', label: 'Категория' },
+  { key: 'clinic_name', label: 'Название' },
+  { key: 'doctor_tel', label: 'Доктор тел' },
+  { key: 'doctor_email', label: 'Эл. адрес' },
+  { key: 'full_address', label: 'Полный адрес' },
+]
+
+/** "Заполните обязательные поля: ..." for whatever's blank, or null. */
+function missingFieldsError(form: DoctorFormValues): string | null {
+  const missing = REQUIRED_FIELDS.filter(
+    ({ key }) => form[key].trim() === ''
+  ).map(({ label }) => label)
+  return missing.length
+    ? `Заполните обязательные поля: ${missing.join(', ')}`
+    : null
 }
 
 const route = getRouteApi('/_authenticated/doctors/')
@@ -162,56 +194,35 @@ export function Doctors() {
   const query = search.search ?? ''
 
   // Country access is per-user — everyone but an admin is pinned to their
-  // own country and can't change it (see useCountryLock). Shared by both
-  // the filter panel below and the entry form's own Страна field.
+  // own country and can't change it (see useCountryLock). Drives the entry
+  // form's own Страна field.
   const countryLock = useCountryLock()
   const locked = countryLock.locked
-  const effectiveCountry = locked
-    ? countryLock.userCountry
-    : (search.country ?? '')
-
-  const [filtersOpen, setFiltersOpen] = useState(true)
+  // Страна can't be touched while locked — nor while the lock state itself
+  // is still loading (useCountryLock reports locked: false until
+  // /country-options/ answers, which would otherwise leave a brief window
+  // where a locked user could pick another country).
+  const countryDisabled = locked || countryLock.isLoading
 
   // Local input state so typing doesn't trigger a fetch on every keystroke —
   // only submitting the form (or pressing Enter) commits `search` to the URL.
   const [searchInput, setSearchInput] = useState(query)
 
-  // resetScroll: false — this navigate() only ever updates filters/search/
+  // resetScroll: false — this navigate() only ever updates brand/search/
   // page within the same route, and TanStack Router's default is to scroll
   // the window back to top on every navigation (including these), which
   // yanks the list back up whenever Вперёд/Назад is clicked mid-scroll.
   const setSearch = (next: DoctorsSearch) =>
     navigate({ search: (prev) => ({ ...prev, ...next }), resetScroll: false })
 
-  // Every dropdown filter resets pagination back to page 1.
-  const applyFilter = (patch: DoctorsSearch) => setSearch({ ...patch, page: 1 })
-
   const { data, isLoading, isPlaceholderData, error } =
     useQuery<DoctorApiResponse>({
-      queryKey: [
-        'doctors',
-        brand,
-        page,
-        query,
-        effectiveCountry,
-        search.area,
-        search.region,
-        search.city,
-        search.specialty,
-        search.unified_specialty,
-        search.medrep,
-      ],
+      // No filter params — the backend itself narrows a medrep's list to
+      // their own doctors.
+      queryKey: ['doctors', brand, page, query],
       queryFn: async () => {
         const params = new URLSearchParams({ brand, page: String(page) })
         if (query) params.set('search', query)
-        if (effectiveCountry) params.set('country', effectiveCountry)
-        if (search.area) params.set('area', search.area)
-        if (search.region) params.set('region', search.region)
-        if (search.city) params.set('city', search.city)
-        if (search.specialty) params.set('specialty', search.specialty)
-        if (search.unified_specialty)
-          params.set('unified_specialty', search.unified_specialty)
-        if (search.medrep) params.set('medrep', search.medrep)
         const res = await api.get<DoctorApiResponse>(
           `/sales/api/doctor/?${params}`
         )
@@ -220,9 +231,9 @@ export function Doctors() {
       placeholderData: (previousData) => previousData,
     })
 
-  // Independent dropdown lists — not brand-scoped (unlike pharmacies). Also
-  // feeds the entry form's Мед. представитель/Специальность/Осн.
-  // специальность dropdowns below.
+  // Independent dropdown lists — not brand-scoped (unlike pharmacies). Feeds
+  // the entry form's Страна/Мед. представитель/Специальность/Осн.
+  // специальность/Название клиники dropdowns below.
   const { data: filterOptions } = useQuery<DoctorFilterOptions>({
     queryKey: ['doctor-filter-options'],
     queryFn: async () => {
@@ -231,63 +242,6 @@ export function Doctors() {
       )
       return res.data
     },
-  })
-
-  // Cascading location levels for the *filter panel* — each only fetches
-  // once its parent is set. The entry form below has its own, independent
-  // copies of these three (formArea/formRegion/formCityOptions), keyed off
-  // the form's own draft country/area/region rather than the URL.
-  const { data: areaOptions } = useQuery<DoctorCascadeOptions>({
-    queryKey: ['doctor-filter-area', effectiveCountry],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        level: 'area',
-        country: effectiveCountry,
-      })
-      const res = await api.get<DoctorCascadeOptions>(
-        `/sales/api/doctor/filter-options/?${params}`
-      )
-      return res.data
-    },
-    enabled: Boolean(effectiveCountry),
-  })
-
-  const { data: regionOptions } = useQuery<DoctorCascadeOptions>({
-    queryKey: ['doctor-filter-region', effectiveCountry, search.area],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        level: 'region',
-        country: effectiveCountry,
-        area: search.area!,
-      })
-      const res = await api.get<DoctorCascadeOptions>(
-        `/sales/api/doctor/filter-options/?${params}`
-      )
-      return res.data
-    },
-    enabled: Boolean(effectiveCountry && search.area),
-  })
-
-  const { data: cityOptions } = useQuery<DoctorCascadeOptions>({
-    queryKey: [
-      'doctor-filter-city',
-      effectiveCountry,
-      search.area,
-      search.region,
-    ],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        level: 'city',
-        country: effectiveCountry,
-        area: search.area!,
-        region: search.region!,
-      })
-      const res = await api.get<DoctorCascadeOptions>(
-        `/sales/api/doctor/filter-options/?${params}`
-      )
-      return res.data
-    },
-    enabled: Boolean(effectiveCountry && search.area && search.region),
   })
 
   const brands = data?.brands ?? [{ value: DEFAULT_BRAND, label: 'Все' }]
@@ -303,18 +257,6 @@ export function Doctors() {
       page: 1,
     })
   }
-
-  const resetFilters = () =>
-    setSearch({
-      page: 1,
-      country: undefined,
-      area: undefined,
-      region: undefined,
-      city: undefined,
-      specialty: undefined,
-      unified_specialty: undefined,
-      medrep: undefined,
-    })
 
   // ===== Карточка врача (Doctor Entry&Update) =====
 
@@ -369,6 +311,25 @@ export function Doctors() {
   // A country-locked user creates/edits doctors in their own country only —
   // same rule the filter panel's Страна already follows.
   const formCountry = locked ? countryLock.userCountry : form.country
+
+  // Same idea for the form's Мед. представитель: a non-staff user is a
+  // medrep and only ever files doctors under their own name (me.medrep_name,
+  // possibly '' until IT maps them — the field then stays empty but still
+  // locked). Staff pick freely. Locked too while /me/ is still loading.
+  const meQuery = useQuery(authMeQueryOptions)
+  const medrepLocked = meQuery.data?.is_staff === false
+  const medrepDisabled = medrepLocked || meQuery.isLoading
+  const formMedrep = medrepLocked
+    ? (meQuery.data?.medrep_name ?? '')
+    : form.medrep
+
+  // The form as it's actually staged/sent/validated — Страна and Мед.
+  // представитель forced to their locked values where applicable.
+  const lockedForm: DoctorFormValues = {
+    ...form,
+    country: formCountry,
+    medrep: formMedrep,
+  }
 
   const { data: formAreaOptions } = useQuery<DoctorCascadeOptions>({
     queryKey: ['doctor-form-area', formCountry],
@@ -463,6 +424,9 @@ export function Doctors() {
         full_address: data.full_address ?? '',
         country_code: data.country_code ?? '',
         building_type: data.building_type ?? '',
+        administrative_area_name: data.administrative_area_name ?? '',
+        sub_administrative_area_name: data.sub_administrative_area_name ?? '',
+        geocode_city: data.city ?? '',
       })
       setEditingId(data.id)
       setFormError(null)
@@ -492,12 +456,21 @@ export function Doctors() {
         ...prev,
         point_x: data.point_x != null ? String(data.point_x) : prev.point_x,
         point_y: data.point_y != null ? String(data.point_y) : prev.point_y,
-        full_address: data.full_address ?? prev.full_address,
+        full_address: data.full_address || prev.full_address,
+        // Адрес клиники is prefilled with the found address too — still
+        // editable by hand afterwards.
+        clinic_address: data.full_address ?? prev.clinic_address,
         street: data.street ?? prev.street,
         homenumber: data.home_number ?? prev.homenumber,
-        city: data.city ?? prev.city,
-        area: data.administrative_area_name ?? prev.area,
-        region: data.sub_administrative_area_name ?? prev.region,
+        // The geocoder's own area names go to their own columns — the
+        // Страна/Область/Регион/Город cascade dropdowns are left exactly as
+        // the user picked them.
+        administrative_area_name:
+          data.administrative_area_name ?? prev.administrative_area_name,
+        sub_administrative_area_name:
+          data.sub_administrative_area_name ??
+          prev.sub_administrative_area_name,
+        geocode_city: data.city ?? prev.geocode_city,
         country_code: data.country_code ?? prev.country_code,
         building_type: data.building_type ?? prev.building_type,
       }))
@@ -534,7 +507,7 @@ export function Doctors() {
     mutationFn: async () => {
       const payload = {
         id: editingId,
-        ...buildDoctorPayload({ ...form, country: formCountry }),
+        ...buildDoctorPayload(lockedForm),
       }
       const res = await api.post<DoctorMutationResponse>(
         '/sales/api/doctor/update/',
@@ -579,12 +552,13 @@ export function Doctors() {
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault()
     setFormNotice(null)
-    if (!form.doctor_name.trim()) {
-      setFormError('Укажите имя доктора')
+    const missing = missingFieldsError(lockedForm)
+    if (missing) {
+      setFormError(missing)
       return
     }
     setFormError(null)
-    setPendingRows((prev) => [...prev, { ...form, country: formCountry }])
+    setPendingRows((prev) => [...prev, lockedForm])
     resetForm()
   }
 
@@ -596,8 +570,9 @@ export function Doctors() {
 
   const handleUpdate = () => {
     setFormNotice(null)
-    if (!form.doctor_name.trim()) {
-      setFormError('Укажите имя доктора')
+    const missing = missingFieldsError(lockedForm)
+    if (missing) {
+      setFormError(missing)
       return
     }
     setFormError(null)
@@ -662,7 +637,9 @@ export function Doctors() {
                   </h3>
                   <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
                     <div className='space-y-1.5'>
-                      <Label>Компания</Label>
+                      <Label>
+                        Компания <span className='text-destructive'>*</span>
+                      </Label>
                       <FormSelect
                         value={form.brand}
                         options={BRAND_OPTIONS}
@@ -671,53 +648,103 @@ export function Doctors() {
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Страна</Label>
-                      <FormSelect
-                        value={formCountry}
-                        options={
-                          locked
-                            ? [countryLock.userCountry]
-                            : (filterOptions?.countries ?? [])
-                        }
-                        disabled={locked}
-                        onChange={setFormCountry}
-                      />
+                      <Label>
+                        Страна <span className='text-destructive'>*</span>
+                      </Label>
+                      {isEditing ? (
+                        <Input
+                          value={formCountry}
+                          disabled
+                          readOnly
+                          className='disabled:opacity-70'
+                        />
+                      ) : (
+                        <FormSelect
+                          value={formCountry}
+                          options={
+                            locked
+                              ? [countryLock.userCountry]
+                              : (filterOptions?.countries ?? [])
+                          }
+                          disabled={countryDisabled}
+                          onChange={setFormCountry}
+                        />
+                      )}
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Область</Label>
-                      <FormSelect
-                        value={form.area}
-                        options={formAreaOptions?.options ?? []}
-                        disabled={!formCountry}
-                        placeholder={
-                          formCountry ? 'Не выбрано' : 'Сначала выберите страну'
-                        }
-                        onChange={setFormArea}
-                      />
+                      <Label>
+                        Область <span className='text-destructive'>*</span>
+                      </Label>
+                      {isEditing ? (
+                        <Input
+                          value={form.area}
+                          disabled
+                          readOnly
+                          className='disabled:opacity-70'
+                        />
+                      ) : (
+                        <FormSelect
+                          value={form.area}
+                          options={formAreaOptions?.options ?? []}
+                          disabled={!formCountry && !form.area}
+                          placeholder={
+                            formCountry
+                              ? 'Не выбрано'
+                              : 'Сначала выберите страну'
+                          }
+                          onChange={setFormArea}
+                        />
+                      )}
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Регион</Label>
-                      <FormSelect
-                        value={form.region}
-                        options={formRegionOptions?.options ?? []}
-                        disabled={!form.area}
-                        placeholder={
-                          form.area ? 'Не выбрано' : 'Сначала выберите область'
-                        }
-                        onChange={setFormRegion}
-                      />
+                      <Label>
+                        Регион <span className='text-destructive'>*</span>
+                      </Label>
+                      {isEditing ? (
+                        <Input
+                          value={form.region}
+                          disabled
+                          readOnly
+                          className='disabled:opacity-70'
+                        />
+                      ) : (
+                        <FormSelect
+                          value={form.region}
+                          options={formRegionOptions?.options ?? []}
+                          disabled={!form.area && !form.region}
+                          placeholder={
+                            form.area
+                              ? 'Не выбрано'
+                              : 'Сначала выберите область'
+                          }
+                          onChange={setFormRegion}
+                        />
+                      )}
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Город</Label>
-                      <FormSelect
-                        value={form.city}
-                        options={formCityOptions?.options ?? []}
-                        disabled={!form.region}
-                        placeholder={
-                          form.region ? 'Не выбрано' : 'Сначала выберите регион'
-                        }
-                        onChange={(v) => setField('city', v)}
-                      />
+                      <Label>
+                        Город <span className='text-destructive'>*</span>
+                      </Label>
+                      {isEditing ? (
+                        <Input
+                          value={form.city}
+                          disabled
+                          readOnly
+                          className='disabled:opacity-70'
+                        />
+                      ) : (
+                        <FormSelect
+                          value={form.city}
+                          options={formCityOptions?.options ?? []}
+                          disabled={!form.region && !form.city}
+                          placeholder={
+                            form.region
+                              ? 'Не выбрано'
+                              : 'Сначала выберите регион'
+                          }
+                          onChange={(v) => setField('city', v)}
+                        />
+                      )}
                     </div>
                   </div>
                 </div>
@@ -740,15 +767,26 @@ export function Doctors() {
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Мед. представитель</Label>
+                      <Label>
+                        Мед. представитель{' '}
+                        <span className='text-destructive'>*</span>
+                      </Label>
                       <FormSelect
-                        value={form.medrep}
-                        options={filterOptions?.medreps ?? []}
+                        value={formMedrep}
+                        options={
+                          medrepLocked
+                            ? [formMedrep].filter(Boolean)
+                            : (filterOptions?.medreps ?? [])
+                        }
+                        disabled={medrepDisabled}
                         onChange={(v) => setField('medrep', v)}
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Категория врачей</Label>
+                      <Label>
+                        Категория врачей{' '}
+                        <span className='text-destructive'>*</span>
+                      </Label>
                       <FormSelect
                         value={form.category}
                         options={CATEGORY_OPTIONS}
@@ -756,7 +794,10 @@ export function Doctors() {
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Основная специальность</Label>
+                      <Label>
+                        Основная специальность{' '}
+                        <span className='text-destructive'>*</span>
+                      </Label>
                       <FormSelect
                         value={form.unified_specialty}
                         options={filterOptions?.unified_specialties ?? []}
@@ -764,7 +805,10 @@ export function Doctors() {
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Специальность</Label>
+                      <Label>
+                        Специальность{' '}
+                        <span className='text-destructive'>*</span>
+                      </Label>
                       <FormSelect
                         value={form.specialty}
                         options={filterOptions?.specialties ?? []}
@@ -781,14 +825,19 @@ export function Doctors() {
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Дата активации</Label>
+                      <Label>
+                        Дата активации{' '}
+                        <span className='text-destructive'>*</span>
+                      </Label>
                       <DateInput
                         value={form.doctor_date}
                         onChange={(v) => setField('doctor_date', v)}
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Активность</Label>
+                      <Label>
+                        Активность <span className='text-destructive'>*</span>
+                      </Label>
                       <FormSelect
                         value={form.activeness}
                         options={ACTIVENESS_OPTIONS}
@@ -796,7 +845,9 @@ export function Doctors() {
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Доктор тел</Label>
+                      <Label>
+                        Доктор тел <span className='text-destructive'>*</span>
+                      </Label>
                       <Input
                         type='tel'
                         value={form.doctor_tel}
@@ -804,7 +855,9 @@ export function Doctors() {
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Эл. адрес</Label>
+                      <Label>
+                        Эл. адрес <span className='text-destructive'>*</span>
+                      </Label>
                       <Input
                         type='email'
                         value={form.doctor_email}
@@ -822,7 +875,9 @@ export function Doctors() {
                   </h3>
                   <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
                     <div className='space-y-1.5'>
-                      <Label>Категория</Label>
+                      <Label>
+                        Категория <span className='text-destructive'>*</span>
+                      </Label>
                       <FormSelect
                         value={form.clinic_status}
                         options={CLINIC_STATUS_OPTIONS}
@@ -830,12 +885,13 @@ export function Doctors() {
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Название</Label>
-                      <Input
+                      <Label>
+                        Название <span className='text-destructive'>*</span>
+                      </Label>
+                      <FormSelect
                         value={form.clinic_name}
-                        onChange={(e) =>
-                          setField('clinic_name', e.target.value)
-                        }
+                        options={filterOptions?.clinics ?? []}
+                        onChange={(v) => setField('clinic_name', v)}
                       />
                     </div>
                     <div className='space-y-1.5'>
@@ -854,15 +910,6 @@ export function Doctors() {
                         onChange={(e) => setField('key_person', e.target.value)}
                       />
                     </div>
-                    <div className='space-y-1.5 lg:col-span-2'>
-                      <Label>Адрес клиники</Label>
-                      <Input
-                        value={form.clinic_address}
-                        onChange={(e) =>
-                          setField('clinic_address', e.target.value)
-                        }
-                      />
-                    </div>
                     <div className='space-y-1.5'>
                       <Label>Количество</Label>
                       <Input
@@ -870,6 +917,15 @@ export function Doctors() {
                         value={form.clinic_count}
                         onChange={(e) =>
                           setField('clinic_count', e.target.value)
+                        }
+                      />
+                    </div>
+                    <div className='space-y-1.5 lg:col-span-3'>
+                      <Label>Адрес клиники</Label>
+                      <Input
+                        value={form.clinic_address}
+                        onChange={(e) =>
+                          setField('clinic_address', e.target.value)
                         }
                       />
                     </div>
@@ -881,14 +937,16 @@ export function Doctors() {
                     Адрес
                   </h3>
                   <div className='space-y-1.5'>
-                    <Label>Полный адрес</Label>
+                    <Label>
+                      Полный адрес <span className='text-destructive'>*</span>
+                    </Label>
                     <div className='flex flex-col gap-2 sm:flex-row'>
                       <Input
                         value={form.full_address}
                         onChange={(e) =>
                           setField('full_address', e.target.value)
                         }
-                        placeholder='Введите адрес для поиска (DaData)'
+                        placeholder='Введите адрес для поиска'
                         className='flex-1'
                       />
                       <Button
@@ -909,7 +967,7 @@ export function Doctors() {
                       Дом, Город, Область, Регион, point_x/point_y, код страны и
                       тип здания ниже по найденному адресу — эти поля недоступны
                       для ручного ввода и берутся только из результата
-                      геокодирования (DaData).
+                      геокодирования.
                     </p>
                   </div>
                   <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
@@ -934,7 +992,7 @@ export function Doctors() {
                     <div className='space-y-1.5'>
                       <Label>Город</Label>
                       <Input
-                        value={form.city}
+                        value={form.geocode_city}
                         disabled
                         readOnly
                         className='disabled:opacity-70'
@@ -943,7 +1001,7 @@ export function Doctors() {
                     <div className='space-y-1.5'>
                       <Label>Область (Administrative)</Label>
                       <Input
-                        value={form.area}
+                        value={form.administrative_area_name}
                         disabled
                         readOnly
                         className='disabled:opacity-70'
@@ -952,7 +1010,7 @@ export function Doctors() {
                     <div className='space-y-1.5'>
                       <Label>Регион (Sub-administrative)</Label>
                       <Input
-                        value={form.region}
+                        value={form.sub_administrative_area_name}
                         disabled
                         readOnly
                         className='disabled:opacity-70'
@@ -1145,109 +1203,6 @@ export function Doctors() {
           cancelBtnText='Отмена'
         />
 
-        <Card className='mb-4'>
-          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-            <CardHeader className='flex flex-row items-center justify-between space-y-0'>
-              <CardTitle className='text-base'>Фильтры</CardTitle>
-              <div className='flex items-center gap-2'>
-                <Button variant='ghost' size='sm' onClick={resetFilters}>
-                  Сбросить фильтры
-                </Button>
-                <CollapsibleTrigger asChild>
-                  <Button variant='ghost' size='icon'>
-                    <ChevronDown
-                      className={cn(
-                        'size-4 transition-transform',
-                        filtersOpen && 'rotate-180'
-                      )}
-                    />
-                  </Button>
-                </CollapsibleTrigger>
-              </div>
-            </CardHeader>
-            <CollapsibleContent>
-              <CardContent>
-                <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-                  <FilterSelect
-                    label='Страна'
-                    value={effectiveCountry || undefined}
-                    options={
-                      locked
-                        ? [countryLock.userCountry]
-                        : (filterOptions?.countries ?? [])
-                    }
-                    disabled={locked}
-                    onChange={(v) =>
-                      applyFilter({
-                        country: v,
-                        area: undefined,
-                        region: undefined,
-                        city: undefined,
-                      })
-                    }
-                  />
-                  <FilterSelect
-                    label='Область'
-                    value={search.area}
-                    options={areaOptions?.options ?? []}
-                    disabled={!effectiveCountry}
-                    placeholder={
-                      effectiveCountry ? 'Все' : 'Сначала выберите страну'
-                    }
-                    onChange={(v) =>
-                      applyFilter({
-                        area: v,
-                        region: undefined,
-                        city: undefined,
-                      })
-                    }
-                  />
-                  <FilterSelect
-                    label='Регион'
-                    value={search.region}
-                    options={regionOptions?.options ?? []}
-                    disabled={!search.area}
-                    placeholder={
-                      search.area ? 'Все' : 'Сначала выберите область'
-                    }
-                    onChange={(v) =>
-                      applyFilter({ region: v, city: undefined })
-                    }
-                  />
-                  <FilterSelect
-                    label='Город'
-                    value={search.city}
-                    options={cityOptions?.options ?? []}
-                    disabled={!search.region}
-                    placeholder={
-                      search.region ? 'Все' : 'Сначала выберите регион'
-                    }
-                    onChange={(v) => applyFilter({ city: v })}
-                  />
-                  <FilterSelect
-                    label='Специальность'
-                    value={search.specialty}
-                    options={filterOptions?.specialties ?? []}
-                    onChange={(v) => applyFilter({ specialty: v })}
-                  />
-                  <FilterSelect
-                    label='Ед. специальность'
-                    value={search.unified_specialty}
-                    options={filterOptions?.unified_specialties ?? []}
-                    onChange={(v) => applyFilter({ unified_specialty: v })}
-                  />
-                  <FilterSelect
-                    label='Мед. представитель'
-                    value={search.medrep}
-                    options={filterOptions?.medreps ?? []}
-                    onChange={(v) => applyFilter({ medrep: v })}
-                  />
-                </div>
-              </CardContent>
-            </CollapsibleContent>
-          </Collapsible>
-        </Card>
-
         <Card>
           <CardHeader className='flex flex-row flex-wrap items-center justify-between gap-3 space-y-0'>
             <CardDescription>
@@ -1356,47 +1311,6 @@ export function Doctors() {
   )
 }
 
-// A single "<Label/><Select/>" filter field with a built-in "Все" (no
-// filter) option — shared by every dropdown in the filter panel above.
-function FilterSelect({
-  label,
-  value,
-  options,
-  onChange,
-  disabled,
-  placeholder = 'Все',
-}: {
-  label: string
-  value: string | undefined
-  options: string[]
-  onChange: (value: string | undefined) => void
-  disabled?: boolean
-  placeholder?: string
-}) {
-  return (
-    <div className='space-y-1.5'>
-      <Label>{label}</Label>
-      <Select
-        value={value ?? ALL}
-        onValueChange={(v) => onChange(v === ALL ? undefined : v)}
-        disabled={disabled}
-      >
-        <SelectTrigger className='w-full'>
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL}>Все</SelectItem>
-          {options.map((o) => (
-            <SelectItem key={o} value={o}>
-              {o}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  )
-}
-
 // A plain "<Select/>" for the entry form — no "Все" item (this isn't a
 // filter, an empty value here just means the field wasn't filled in).
 function FormSelect({
@@ -1412,22 +1326,36 @@ function FormSelect({
   disabled?: boolean
   placeholder?: string
 }) {
-  // The current value can come from somewhere other than this list —
-  // "Найти адрес" fills Область/Регион/Город straight from DaData, which
-  // won't always match the filter-options cascade's known values. Rather
-  // than have the Select silently show nothing for a value it doesn't
-  // recognize, make sure that value is always one of the render options.
+  // The current value is always shown, whether or not it's in `options`:
+  // "Найти адрес" can set values the cascade lists don't know, and clicking
+  // a table row sets Город/Регион/Область before their lists return. So:
+  //  1. The value is always one of the items (added up front unless that
+  //     exact string is already there), so Radix can select it.
+  //  2. SelectValue is given the label directly. Otherwise Radix only fills
+  //     the trigger once the matching item has rendered, which left the
+  //     field blank on the first row click when the list arrived late.
+  // Blank and duplicate options are dropped — Radix rejects an empty item
+  // value, and a repeated one would duplicate its React key.
+  const trimmed = (value ?? '').trim()
+  const cleanOptions = Array.from(
+    new Set(options.filter((o) => (o ?? '').trim() !== ''))
+  )
   const allOptions =
-    value !== '' && !options.includes(value) ? [value, ...options] : options
+    trimmed !== '' && !cleanOptions.includes(value)
+      ? [value, ...cleanOptions]
+      : cleanOptions
+  const selectValue = trimmed === '' ? EMPTY : value
 
   return (
     <Select
-      value={value === '' ? EMPTY : value}
+      value={selectValue}
       onValueChange={(v) => onChange(v === EMPTY ? '' : v)}
       disabled={disabled}
     >
       <SelectTrigger className='w-full'>
-        <SelectValue placeholder={placeholder} />
+        <SelectValue placeholder={placeholder}>
+          {selectValue === EMPTY ? '—' : value}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={EMPTY}>—</SelectItem>

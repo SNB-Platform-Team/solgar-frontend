@@ -30,6 +30,9 @@ export interface PharmacyFilterOptions {
   promos: string[]
   marketing_staff: string[]
   assortiments?: string[]
+  skus?: string[]
+  /** Статус choices for the form — country-scoped server-side. */
+  statuses?: string[]
 }
 
 /** One cascading level — GET filter-options/?brand=&level=&country=&area=&region= */
@@ -64,7 +67,7 @@ export interface PharmacyDetail {
   pharmacy_category: string
   assortiment: string
   assortiment1: string
-  activeness: string
+  pharmacy_activeness: string
   pharmacy_type: string
   promo: string
   status: string
@@ -82,11 +85,13 @@ export interface PharmacyDetail {
   pharmacy_no: string
   comments: string
   pharmacy_address: string
-  // Адрес — filled either by hand or by "Найти адрес" (see
-  // PharmacyGeocodeResponse); full_address doubles as the query text typed
-  // into that search. area/region above double as the geocode response's
-  // administrative_area_name/sub_administrative_area_name targets too —
-  // same convention as Doctor Entry.
+  // Адрес — filled by "Найти адрес" (see PharmacyGeocodeResponse);
+  // full_address doubles as the query text typed into that search. The
+  // geocoder's own area names live in administrative_area_name/
+  // sub_administrative_area_name — separate columns from the area/region
+  // cascade dropdowns above, which geocoding never touches.
+  administrative_area_name: string
+  sub_administrative_area_name: string
   street: string
   homenumber: string
   point_x: string | number | null
@@ -108,11 +113,17 @@ export type PharmacyFormValues = Omit<
 > & {
   point_x: string
   point_y: string
+  /** Form-only: the Подтип picked under Промо (see promo-catalog.ts). Not
+   * its own DB column — buildPharmacyPayload writes it into `comments`. */
+  promo_subtype: string
 }
 
 /** Shape of GET /sales/api/pharmacy/detail/?brand=&id= — `error` is set
  * (and the rest of the fields may be absent) when the id doesn't resolve. */
 export type PharmacyDetailResponse = Partial<PharmacyDetail> & {
+  /** Where the form's Статус actually lives in the DB (`status` itself is
+   * an integer soft-delete flag). */
+  pharmacy_group?: string
   error?: string
 }
 

@@ -36,6 +36,15 @@ export interface SalesUploadSummary {
  * pages come from GET .../page/ keyed by `batch_id` — see
  * SalesUploadPageResponse — not from re-parsing or re-sending the file.
  */
+/**
+ * Shape of POST /sales/api/pharmacy-upload/sheets/ — {excel_file} in, the
+ * workbook's sheet names out (multi-month files keep one month per sheet).
+ */
+export interface SalesUploadSheetsResponse {
+  sheets: string[]
+  error: string
+}
+
 export interface SalesUploadPreviewResponse {
   batch_id: string
   rows: SalesUploadRow[]

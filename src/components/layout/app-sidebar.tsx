@@ -11,10 +11,12 @@ import { AppTitle } from './app-title'
 import { sidebarData } from './data/sidebar-data'
 import { NavGroup } from './nav-group'
 import { NavUser } from './nav-user'
+import { useVisibleNavGroups } from './nav-utils'
 
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
   const me = useAuthUser()
+  const navGroups = useVisibleNavGroups()
   // Real session info once /sales/api/me/ resolves — falls back to the
   // static placeholder only for the brief instant before that happens.
   const user = me
@@ -28,7 +30,7 @@ export function AppSidebar() {
         <AppTitle />
       </SidebarHeader>
       <SidebarContent>
-        {sidebarData.navGroups.map((props) => (
+        {navGroups.map((props) => (
           <NavGroup key={props.title} {...props} />
         ))}
       </SidebarContent>

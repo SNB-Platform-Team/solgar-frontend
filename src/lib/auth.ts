@@ -7,6 +7,13 @@ export interface MeResponse {
   username: string
   display_name: string
   is_staff: boolean
+  is_superuser: boolean
+  country: string
+  /** Screen codes this user may open (see lib/screens.ts) — every code
+   * for a superuser. */
+  screens: string[]
+  /** The medrep name this user maps to ('' if none / not a medrep). */
+  medrep_name: string
 }
 
 async function fetchMe(): Promise<MeResponse> {
@@ -35,6 +42,11 @@ export const authMeQueryOptions = queryOptions({
  */
 export function useAuthUser() {
   return useQuery(authMeQueryOptions).data
+}
+
+/** The current user's screen codes (empty until /sales/api/me/ resolves). */
+export function useScreens(): string[] {
+  return useAuthUser()?.screens ?? []
 }
 
 export { redirectToLogin, redirectToLogout }

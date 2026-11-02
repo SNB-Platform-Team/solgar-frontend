@@ -80,6 +80,10 @@ export interface DoctorDetail {
   full_address: string
   country_code: string
   building_type: string
+  // The geocoder's own area names — separate columns from the area/region
+  // cascade dropdowns above, which geocoding never touches.
+  administrative_area_name: string
+  sub_administrative_area_name: string
 }
 
 /**
@@ -95,6 +99,9 @@ export type DoctorFormValues = Omit<
   clinic_count: string
   point_x: string
   point_y: string
+  /** Form-only: the city "Найти адрес" resolved, shown read-only under
+   * Адрес. Not a DB column — stripped from the payload. */
+  geocode_city: string
 }
 
 /** Shape of GET /sales/api/doctor/detail/?id= — `error` is set (and the

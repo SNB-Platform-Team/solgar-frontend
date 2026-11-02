@@ -23,6 +23,9 @@ type NavLink = BaseNavItem & {
   items?: never
   /** Shown greyed out and not clickable (e.g. a report not ready yet). */
   disabled?: boolean
+  /** Screen code required to see this link (see lib/screens.ts) — no code
+   * means it's shown to everyone. */
+  screen?: string
 }
 
 // A collapsible node's children can themselves be links or further

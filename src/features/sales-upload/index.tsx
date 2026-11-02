@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   AlertCircle,
@@ -44,9 +44,28 @@ import {
   type SalesUploadPreviewResponse,
   type SalesUploadRow,
   type SalesUploadSaveResponse,
+  type SalesUploadSheetsResponse,
 } from './types'
 
 const formatNumber = (n: number) => n.toLocaleString('ru-RU')
+
+// Multi-month workbooks keep one month per sheet, named in Russian. Only
+// those sheets are offered in Лист (месяц) — others ("солгар", "Остатки
+// склад", "Svodnaya", ...) aren't monthly sales data.
+const RU_MONTHS = [
+  'январь',
+  'февраль',
+  'март',
+  'апрель',
+  'май',
+  'июнь',
+  'июль',
+  'август',
+  'сентябрь',
+  'октябрь',
+  'ноябрь',
+  'декабрь',
+]
 
 const COLUMNS: { key: keyof SalesUploadRow; label: string }[] = [
   { key: 'index', label: '№' },
@@ -114,6 +133,43 @@ export function SalesUpload() {
   const [validationError, setValidationError] = useState<string | null>(null)
   const [savedCount, setSavedCount] = useState<number | null>(null)
 
+  // Multi-month workbooks (one month per sheet: январь, февраль, ...) —
+  // the sheet list is fetched as soon as a file is picked and narrowed to
+  // the month-named sheets (see RU_MONTHS); the chosen one goes along with
+  // the preview request. Left empty when the file has no month sheets or
+  // the lookup fails — then no sheet_name is sent and the backend parses
+  // the first sheet, same as before.
+  const [sheets, setSheets] = useState<string[]>([])
+  const [selectedSheet, setSelectedSheet] = useState<string>('')
+  // Only the latest file's sheet lookup may land — picking another file
+  // while one is in flight would otherwise let the stale list win.
+  const sheetsRequestRef = useRef(0)
+
+  const handleFileChange = async (next: File | null) => {
+    setFile(next)
+    setSheets([])
+    setSelectedSheet('')
+    const requestId = ++sheetsRequestRef.current
+    if (!next) return
+    try {
+      const formData = new FormData()
+      formData.append('excel_file', next)
+      const res = await api.post<SalesUploadSheetsResponse>(
+        '/sales/api/pharmacy-upload/sheets/',
+        formData
+      )
+      if (requestId !== sheetsRequestRef.current) return
+      const list = res.data.error ? [] : (res.data.sheets ?? [])
+      const monthSheets = list.filter((s) =>
+        RU_MONTHS.includes(s.trim().toLowerCase())
+      )
+      setSheets(monthSheets)
+      setSelectedSheet(monthSheets[0] ?? '')
+    } catch {
+      // Silently fall back to a plain (first-sheet) upload.
+    }
+  }
+
   // Server-side pagination — the backend parses and holds the *entire*
   // batch (tens of thousands of rows possible), and only ever hands back
   // one page at a time. React only ever keeps this one page's rows in
@@ -153,6 +209,7 @@ export function SalesUpload() {
       formData.append('country', effectiveCountry)
       formData.append('report_date', reportDate)
       formData.append('main_group', '')
+      if (selectedSheet) formData.append('sheet_name', selectedSheet)
       const res = await api.post<SalesUploadPreviewResponse>(
         '/sales/api/pharmacy-upload/preview/',
         formData
@@ -213,6 +270,8 @@ export function SalesUpload() {
         setSavedCount(data.created)
         // Reset the form for the next upload.
         setFile(null)
+        setSheets([])
+        setSelectedSheet('')
         setReportDate('')
         setChainName('')
         setCountry('')
@@ -236,20 +295,21 @@ export function SalesUpload() {
       return
     }
 
-    // Dosya adından ay/yıl bilgisini çıkar (örn: AVE_03_2025.xlsx -> ay=03, yıl=2025)
-    const fileDateMatch = file.name.match(/_(\d{2})_(\d{4})\.[^.]+$/)
-    const [fileMonth, fileYear] = fileDateMatch
-      ? [fileDateMatch[1], fileDateMatch[2]]
-      : [null, null]
+    // Dosya adından ay/yıl bilgisini çıkar — ayırıcı "_" ya da boşluk olabilir
+    // (AVE_03_2025.xlsx, "ASNA 07_2026.xls", ...). m[1] = ay, m[2] = yıl.
+    const fileBaseName = file.name.replace(/\.[^.]+$/, '')
+    const fileDateMatch = fileBaseName.match(/[ _](\d{2})[ _](\d{4})(?:\D|$)/)
 
-    // reportDate input'u her zaman yyyy-MM-dd formatında gelir (native date input)
+    // reportDate her zaman yyyy-MM-dd formatında gelir (DateInput)
     const [reportYear, reportMonth, reportDay] = reportDate.split('-')
 
+    // Dosya adında ay/yıl yoksa bu karşılaştırma atlanır (engellemez).
     const monthYearMatches =
-      fileMonth === reportMonth && fileYear === reportYear
+      !fileDateMatch ||
+      (fileDateMatch[1] === reportMonth && fileDateMatch[2] === reportYear)
     const isFirstOfMonth = reportDay === '01'
 
-    if (!fileDateMatch || !monthYearMatches || !isFirstOfMonth) {
+    if (!monthYearMatches || !isFirstOfMonth) {
       setValidationError(
         'Дата введена неверно: проверьте месяц/год в названии файла и убедитесь, что выбрано 1-е число месяца.'
       )
@@ -257,17 +317,26 @@ export function SalesUpload() {
     }
 
     // ---- YENİ: DOSYA ADI İLE SEÇİLEN AĞ (CHAIN NAME) KONTROLÜ ----
-    // İlk alt çizgiye kadar olan kısmı alır (Örn: "AVE_03_2025.xlsx" -> "AVE")
-    const fileChainName = file.name.split('_')[0]
+    // Gevşek eşleşme: ikisi de büyük harfe çevrilip harf/rakam dışı her şey
+    // (_ - boşluk .) atılır; biri diğerini içeriyorsa geçerli. Baştaki ülke
+    // kodu (RU_RIGLA_05_2026 -> RIGLA) atılmış halleri de karşılaştırılır.
+    const fileNameWithoutExt = file.name.replace(/\.[^.]+$/, '')
+    const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, '')
+    const stripCountry = (s: string) => s.replace(/^(RU|KZ|KG|BY|AM|AZ|UZ)/, '')
+    const nFile = norm(fileNameWithoutExt)
+    const nChain = norm(chainName)
+    const fileCore = stripCountry(nFile)
+    const chainCore = stripCountry(nChain)
+    const ok =
+      nFile.includes(nChain) ||
+      nChain.includes(nFile) ||
+      fileCore.includes(chainCore) ||
+      chainCore.includes(fileCore)
+    const mismatch = chainName && !ok
 
-    // Büyük/küçük harf veya boşluk farklarından dolayı hata oluşmaması için normalize ediyoruz
-    const isChainNameMatching =
-      fileChainName &&
-      fileChainName.trim().toUpperCase() === chainName.trim().toUpperCase()
-
-    if (!isChainNameMatching) {
+    if (mismatch) {
       setValidationError(
-        `Ошибка: Выбранная сеть (${chainName}) не совпадает с именем в названии файла (${fileChainName}).`
+        `Ошибка: Выбранная сеть (${chainName}) не совпадает с именем в названии файла (${fileNameWithoutExt}).`
       )
       return
     }
@@ -371,9 +440,32 @@ export function SalesUpload() {
                     key={fileInputKey}
                     type='file'
                     accept='.xlsx,.xls'
-                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    onChange={(e) =>
+                      handleFileChange(e.target.files?.[0] ?? null)
+                    }
                   />
                 </div>
+
+                {sheets.length >= 1 && (
+                  <div className='space-y-1.5'>
+                    <Label>Лист (месяц)</Label>
+                    <Select
+                      value={selectedSheet}
+                      onValueChange={setSelectedSheet}
+                    >
+                      <SelectTrigger className='w-full'>
+                        <SelectValue placeholder='Выберите лист' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sheets.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {s}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               {validationError && (

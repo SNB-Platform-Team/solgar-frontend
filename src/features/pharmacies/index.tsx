@@ -4,14 +4,14 @@ import { getRouteApi } from '@tanstack/react-router'
 import {
   AlertCircle,
   CheckCircle2,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Image as ImageIcon,
   Search as SearchIcon,
   X,
 } from 'lucide-react'
 import { api } from '@/lib/api'
-import { cn } from '@/lib/utils'
+import { authMeQueryOptions } from '@/lib/auth'
 import { useCountryLock } from '@/hooks/use-country-lock'
 import { Alert, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -23,10 +23,12 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -57,6 +59,12 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import {
+  PROMO_CODES,
+  photoSubtypesFor,
+  subtypesFor,
+  type PromoSubtype,
+} from './promo-catalog'
+import {
   type PharmacyApiResponse,
   type PharmacyBulkSaveResponse,
   type PharmacyCascadeOptions,
@@ -72,12 +80,8 @@ import {
 // entry form's own default Компания.
 const DEFAULT_BRAND = 'SOLGAR'
 
-// Radix Select item values can't be an empty string — "" (no filter) is
-// represented by this sentinel in every dropdown below.
-const ALL = '__ALL__'
-
-// And for the entry form's own optional dropdowns below — "not set" is a
-// legitimate value there too, just without a "Все" label attached to it.
+// Radix Select item values can't be an empty string — the entry form's own
+// optional dropdowns below map "not set" to this sentinel.
 const EMPTY = '__EMPTY__'
 
 // Fixed option lists for the form's enum-like fields — no API backs these,
@@ -87,37 +91,18 @@ const BRAND_OPTIONS = ['SOLGAR', 'NATURES BOUNTY', 'OBF']
 const ASSORTIMENT_OPTIONS = ['под заказ', 'assortiment']
 const ACTIVENESS_OPTIONS = ['Актив', 'Не Актив', 'Закрыта']
 
+// Today as yyyy-MM-dd (local time) — Дата активации's default.
+const todayISO = () => {
+  const d = new Date()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mm}-${dd}`
+}
+
 interface PharmaciesSearch {
   brand?: string
   page?: number
   search?: string
-  country?: string
-  area?: string
-  region?: string
-  city?: string
-  group_company?: string
-  subgroup_company?: string
-  pharmacy_category?: string
-  pharmacy_type?: string
-  promo?: string
-  marketing_staff?: string
-  pharmacy_activeness?: string
-}
-
-// Every filter-panel key — cleared together by Сбросить фильтры and on a
-// brand change (different brands are different tables server-side).
-const CLEARED_FILTERS: PharmaciesSearch = {
-  country: undefined,
-  area: undefined,
-  region: undefined,
-  city: undefined,
-  group_company: undefined,
-  subgroup_company: undefined,
-  pharmacy_category: undefined,
-  pharmacy_type: undefined,
-  promo: undefined,
-  marketing_staff: undefined,
-  pharmacy_activeness: undefined,
 }
 
 const DEFAULT_PHARMACY_FORM: PharmacyFormValues = {
@@ -134,13 +119,13 @@ const DEFAULT_PHARMACY_FORM: PharmacyFormValues = {
   pharmacy_category: '',
   assortiment: '',
   assortiment1: '',
-  activeness: '',
+  pharmacy_activeness: '',
   pharmacy_type: '',
   promo: '',
-  status: '',
+  status: 'STANDARD',
   sku: '',
   cornerNo: '',
-  pharmacy_activation_date: '',
+  pharmacy_activation_date: todayISO(),
   pharmacy_response_person: '',
   pharmacy_email: '',
   pharmacy_tel: '',
@@ -150,6 +135,7 @@ const DEFAULT_PHARMACY_FORM: PharmacyFormValues = {
   pharmacy_work_tel: '',
   pharmacy_no: '',
   comments: '',
+  promo_subtype: '',
   pharmacy_address: '',
   street: '',
   homenumber: '',
@@ -158,19 +144,56 @@ const DEFAULT_PHARMACY_FORM: PharmacyFormValues = {
   full_address: '',
   country_code: '',
   building_type: '',
+  administrative_area_name: '',
+  sub_administrative_area_name: '',
 }
 
 // point_x/point_y are edited as plain strings (they're just number
 // <Input>s) but are numeric server-side — this converts a blank string to
 // null and everything else to a Number right before a create/update
 // request goes out, so the backend never has to coerce it.
+//
+// The form's Статус is stored in the pharmacy_group column — the DB's own
+// `status` is an integer soft-delete flag, so it's never sent from here.
+//
+// The Промо Подтип (promo_subtype) has no column of its own — it's written
+// into `comments`, taking priority over Дополнительная when both are set.
 function buildPharmacyPayload(form: PharmacyFormValues) {
   const toNumberOrNull = (v: string) => (v.trim() === '' ? null : Number(v))
+  const { status, promo_subtype, ...rest } = form
   return {
-    ...form,
+    ...rest,
+    pharmacy_group: status,
+    comments: promo_subtype || form.comments,
     point_x: toNumberOrNull(form.point_x),
     point_y: toNumberOrNull(form.point_y),
   }
+}
+
+// Fields that must be filled before a card can be staged (Добавить) or
+// updated (Обновить), with their form labels for the error message.
+const REQUIRED_FIELDS: { key: keyof PharmacyFormValues; label: string }[] = [
+  { key: 'country', label: 'Страна' },
+  { key: 'area', label: 'Область' },
+  { key: 'region', label: 'Регион' },
+  { key: 'city', label: 'Город' },
+  { key: 'group_company', label: 'Группа компаний' },
+  { key: 'subgroup_company', label: 'Подгруппа' },
+  { key: 'pharmacy_category', label: 'Категория' },
+  { key: 'pharmacy_activeness', label: 'Активность' },
+  { key: 'pharmacy_type', label: 'Тип аптеки' },
+  { key: 'status', label: 'Статус' },
+  { key: 'marketing_staff', label: 'Мед. представитель' },
+]
+
+/** "Заполните обязательные поля: ..." for whatever's blank, or null. */
+function missingFieldsError(form: PharmacyFormValues): string | null {
+  const missing = REQUIRED_FIELDS.filter(
+    ({ key }) => form[key].trim() === ''
+  ).map(({ label }) => label)
+  return missing.length
+    ? `Заполните обязательные поля: ${missing.join(', ')}`
+    : null
 }
 
 const route = getRouteApi('/_authenticated/pharmacies/')
@@ -185,70 +208,35 @@ export function Pharmacies() {
   const query = search.search ?? ''
 
   // Country access is per-user — everyone but an admin is pinned to their
-  // own country and can't change it (see useCountryLock). Shared by both
-  // the filter panel below and the entry form's own Страна field.
+  // own country and can't change it (see useCountryLock). Drives the entry
+  // form's own Страна field.
   const countryLock = useCountryLock()
   const locked = countryLock.locked
-  const effectiveCountry = locked
-    ? countryLock.userCountry
-    : (search.country ?? '')
-
-  const [filtersOpen, setFiltersOpen] = useState(true)
+  // Страна can't be touched while locked — nor while the lock state itself
+  // is still loading (useCountryLock reports locked: false until
+  // /country-options/ answers, which would otherwise leave a brief window
+  // where a locked user could pick another country).
+  const countryDisabled = locked || countryLock.isLoading
 
   // Local input state so typing doesn't trigger a fetch on every keystroke —
   // only submitting the form (or pressing Enter) commits `search` to the URL.
   const [searchInput, setSearchInput] = useState(query)
 
-  // resetScroll: false — this navigate() only ever updates filters/search/
+  // resetScroll: false — this navigate() only ever updates brand/search/
   // page within the same route, and TanStack Router's default is to scroll
   // the window back to top on every navigation (including these), which
   // yanks the list back up whenever Вперёд/Назад is clicked mid-scroll.
   const setSearch = (next: PharmaciesSearch) =>
     navigate({ search: (prev) => ({ ...prev, ...next }), resetScroll: false })
 
-  // Every dropdown filter resets pagination back to page 1.
-  const applyFilter = (patch: PharmaciesSearch) =>
-    setSearch({ ...patch, page: 1 })
-
   const { data, isLoading, isPlaceholderData, error } =
     useQuery<PharmacyApiResponse>({
-      queryKey: [
-        'pharmacies',
-        brand,
-        page,
-        query,
-        effectiveCountry,
-        search.area,
-        search.region,
-        search.city,
-        search.group_company,
-        search.subgroup_company,
-        search.pharmacy_category,
-        search.pharmacy_type,
-        search.promo,
-        search.marketing_staff,
-        search.pharmacy_activeness,
-      ],
+      // No filter params — the backend itself narrows a medrep's list to
+      // their own pharmacies.
+      queryKey: ['pharmacies', brand, page, query],
       queryFn: async () => {
         const params = new URLSearchParams({ brand, page: String(page) })
         if (query) params.set('search', query)
-        if (effectiveCountry) params.set('country', effectiveCountry)
-        if (search.area) params.set('area', search.area)
-        if (search.region) params.set('region', search.region)
-        if (search.city) params.set('city', search.city)
-        if (search.group_company)
-          params.set('group_company', search.group_company)
-        if (search.subgroup_company)
-          params.set('subgroup_company', search.subgroup_company)
-        if (search.pharmacy_category)
-          params.set('pharmacy_category', search.pharmacy_category)
-        if (search.pharmacy_type)
-          params.set('pharmacy_type', search.pharmacy_type)
-        if (search.promo) params.set('promo', search.promo)
-        if (search.marketing_staff)
-          params.set('marketing_staff', search.marketing_staff)
-        if (search.pharmacy_activeness)
-          params.set('pharmacy_activeness', search.pharmacy_activeness)
         const res = await api.get<PharmacyApiResponse>(
           `/sales/api/pharmacy/?${params}`
         )
@@ -256,107 +244,6 @@ export function Pharmacies() {
       },
       placeholderData: (previousData) => previousData,
     })
-
-  // Independent dropdown lists for the *filter panel* — re-fetched
-  // whenever the list's own brand changes (SOLGAR/BOUNTY/OBF are backed by
-  // different tables server-side) or its country does (the backend narrows
-  // Сеть to that country). The entry form below has its own, independent
-  // copy of this (formFilterOptions), keyed off the form's own draft brand
-  // rather than the list's.
-  const { data: filterOptions } = useQuery<PharmacyFilterOptions>({
-    queryKey: ['pharmacy-filter-options', brand, effectiveCountry],
-    queryFn: async () => {
-      const params = new URLSearchParams({ brand })
-      if (effectiveCountry) params.set('country', effectiveCountry)
-      const res = await api.get<PharmacyFilterOptions>(
-        `/sales/api/pharmacy/filter-options/?${params}`
-      )
-      return res.data
-    },
-  })
-
-  // Подгруппа cascades off Сеть — only fetched once a chain is picked.
-  const { data: subchainOptions } = useQuery<PharmacyCascadeOptions>({
-    queryKey: [
-      'pharmacy-filter-subchain',
-      brand,
-      effectiveCountry,
-      search.group_company,
-    ],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        brand,
-        level: 'subchain',
-        group_company: search.group_company!,
-      })
-      if (effectiveCountry) params.set('country', effectiveCountry)
-      const res = await api.get<PharmacyCascadeOptions>(
-        `/sales/api/pharmacy/filter-options/?${params}`
-      )
-      return res.data
-    },
-    enabled: Boolean(search.group_company),
-  })
-
-  // Cascading location levels for the *filter panel* — each only fetches
-  // once its parent is set. The entry form below has its own, independent
-  // copies of these three (formArea/formRegion/formCityOptions).
-  const { data: areaOptions } = useQuery<PharmacyCascadeOptions>({
-    queryKey: ['pharmacy-filter-area', brand, effectiveCountry],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        brand,
-        level: 'area',
-        country: effectiveCountry,
-      })
-      const res = await api.get<PharmacyCascadeOptions>(
-        `/sales/api/pharmacy/filter-options/?${params}`
-      )
-      return res.data
-    },
-    enabled: Boolean(effectiveCountry),
-  })
-
-  const { data: regionOptions } = useQuery<PharmacyCascadeOptions>({
-    queryKey: ['pharmacy-filter-region', brand, effectiveCountry, search.area],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        brand,
-        level: 'region',
-        country: effectiveCountry,
-        area: search.area!,
-      })
-      const res = await api.get<PharmacyCascadeOptions>(
-        `/sales/api/pharmacy/filter-options/?${params}`
-      )
-      return res.data
-    },
-    enabled: Boolean(effectiveCountry && search.area),
-  })
-
-  const { data: cityOptions } = useQuery<PharmacyCascadeOptions>({
-    queryKey: [
-      'pharmacy-filter-city',
-      brand,
-      effectiveCountry,
-      search.area,
-      search.region,
-    ],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        brand,
-        level: 'city',
-        country: effectiveCountry,
-        area: search.area!,
-        region: search.region!,
-      })
-      const res = await api.get<PharmacyCascadeOptions>(
-        `/sales/api/pharmacy/filter-options/?${params}`
-      )
-      return res.data
-    },
-    enabled: Boolean(effectiveCountry && search.area && search.region),
-  })
 
   const brands = data?.brands ?? [
     { value: DEFAULT_BRAND, label: DEFAULT_BRAND },
@@ -368,12 +255,8 @@ export function Pharmacies() {
   }
 
   const changeBrand = (newBrand: string) => {
-    // Different brands are different tables server-side, so every filter
-    // (besides the free-text search) is reset along with the brand.
-    setSearch({ ...CLEARED_FILTERS, brand: newBrand, page: 1 })
+    setSearch({ brand: newBrand, page: 1 })
   }
-
-  const resetFilters = () => setSearch({ ...CLEARED_FILTERS, page: 1 })
 
   // ===== Карточка аптеки (Pharmacy Entry&Update) =====
 
@@ -426,6 +309,7 @@ export function Pharmacies() {
       pharmacy_category: '',
       pharmacy_type: '',
       promo: '',
+      promo_subtype: '',
     }))
 
   // Страна drives Область/Регион/Город in the form too — changing it
@@ -448,13 +332,35 @@ export function Pharmacies() {
   // only — same rule the filter panel's Страна already follows.
   const formCountry = locked ? countryLock.userCountry : form.country
 
+  // Same idea for the form's Мед. представитель (marketing_staff): a
+  // non-staff user is a medrep and only ever files pharmacies under their
+  // own name (me.medrep_name, possibly '' until IT maps them — the field
+  // then stays empty but still locked). Staff pick freely. Locked too while
+  // /me/ is still loading.
+  const meQuery = useQuery(authMeQueryOptions)
+  const medrepLocked = meQuery.data?.is_staff === false
+  const medrepDisabled = medrepLocked || meQuery.isLoading
+  const formMarketingStaff = medrepLocked
+    ? (meQuery.data?.medrep_name ?? '')
+    : form.marketing_staff
+
+  // The form as it's actually staged/sent — Страна and Мед. представитель
+  // forced to their locked values where applicable.
+  const lockedForm: PharmacyFormValues = {
+    ...form,
+    country: formCountry,
+    marketing_staff: formMarketingStaff,
+  }
+
   // The form's own dropdown lists — independent of the filter panel's,
   // keyed off the form's own draft Компания rather than the list's.
   const { data: formFilterOptions } = useQuery<PharmacyFilterOptions>({
-    queryKey: ['pharmacy-form-filter-options', form.brand],
+    queryKey: ['pharmacy-form-filter-options', form.brand, formCountry],
     queryFn: async () => {
+      const params = new URLSearchParams({ brand: form.brand })
+      if (formCountry) params.set('country', formCountry)
       const res = await api.get<PharmacyFilterOptions>(
-        `/sales/api/pharmacy/filter-options/?brand=${encodeURIComponent(form.brand)}`
+        `/sales/api/pharmacy/filter-options/?${params}`
       )
       return res.data
     },
@@ -517,6 +423,44 @@ export function Pharmacies() {
     enabled: Boolean(formCountry && form.area && form.region),
   })
 
+  const { data: formSubchainOptions } = useQuery<PharmacyCascadeOptions>({
+    queryKey: [
+      'pharmacy-form-subchain',
+      form.brand,
+      formCountry,
+      form.group_company,
+    ],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        brand: form.brand,
+        level: 'subchain',
+        group_company: form.group_company,
+      })
+      if (formCountry) params.set('country', formCountry)
+      const res = await api.get<PharmacyCascadeOptions>(
+        `/sales/api/pharmacy/filter-options/?${params}`
+      )
+      return res.data
+    },
+    enabled: Boolean(formCountry),
+  })
+
+  const { data: formMetroOptions } = useQuery<PharmacyCascadeOptions>({
+    queryKey: ['pharmacy-form-metro', form.brand, form.city],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        brand: form.brand,
+        level: 'metro',
+        city: form.city,
+      })
+      const res = await api.get<PharmacyCascadeOptions>(
+        `/sales/api/pharmacy/filter-options/?${params}`
+      )
+      return res.data
+    },
+    enabled: Boolean(form.city),
+  })
+
   // Row click (Result grid, below) → detail lookup → fills the form for
   // editing. See PharmacyApiResponse: row[0]/columns[0] is the pharmacy's
   // id, same convention as Doctor Entry; the record's brand is whichever
@@ -548,10 +492,10 @@ export function Pharmacies() {
         pharmacy_category: data.pharmacy_category ?? '',
         assortiment: data.assortiment ?? '',
         assortiment1: data.assortiment1 ?? '',
-        activeness: data.activeness ?? '',
+        pharmacy_activeness: data.pharmacy_activeness ?? '',
         pharmacy_type: data.pharmacy_type ?? '',
         promo: data.promo ?? '',
-        status: data.status ?? '',
+        status: data.pharmacy_group ?? '',
         sku: data.sku ?? '',
         cornerNo: data.cornerNo ?? '',
         pharmacy_activation_date: data.pharmacy_activation_date ?? '',
@@ -564,6 +508,14 @@ export function Pharmacies() {
         pharmacy_work_tel: data.pharmacy_work_tel ?? '',
         pharmacy_no: data.pharmacy_no ?? '',
         comments: data.comments ?? '',
+        // A Подтип was saved into comments — restore it only if it really
+        // is one of this Промо's subtypes (otherwise comments is just free
+        // text from Дополнительная).
+        promo_subtype: subtypesFor(data.promo ?? '').some(
+          (s) => s.name === data.comments
+        )
+          ? (data.comments ?? '')
+          : '',
         pharmacy_address: data.pharmacy_address ?? '',
         street: data.street ?? '',
         homenumber: data.homenumber ?? '',
@@ -572,6 +524,8 @@ export function Pharmacies() {
         full_address: data.full_address ?? '',
         country_code: data.country_code ?? '',
         building_type: data.building_type ?? '',
+        administrative_area_name: data.administrative_area_name ?? '',
+        sub_administrative_area_name: data.sub_administrative_area_name ?? '',
       })
       setEditingId(data.id)
       setFormError(null)
@@ -602,11 +556,19 @@ export function Pharmacies() {
         point_x: data.point_x != null ? String(data.point_x) : prev.point_x,
         point_y: data.point_y != null ? String(data.point_y) : prev.point_y,
         full_address: data.full_address ?? prev.full_address,
+        // Адрес аптеки is prefilled with the found address too — still
+        // editable by hand afterwards.
+        pharmacy_address: data.full_address ?? prev.pharmacy_address,
         street: data.street ?? prev.street,
         homenumber: data.home_number ?? prev.homenumber,
-        city: data.city ?? prev.city,
-        area: data.administrative_area_name ?? prev.area,
-        region: data.sub_administrative_area_name ?? prev.region,
+        // The geocoder's own area names go to their own columns — the
+        // Страна/Область/Регион/Город cascade dropdowns are left exactly as
+        // the user picked them.
+        administrative_area_name:
+          data.administrative_area_name ?? prev.administrative_area_name,
+        sub_administrative_area_name:
+          data.sub_administrative_area_name ??
+          prev.sub_administrative_area_name,
         country_code: data.country_code ?? prev.country_code,
         building_type: data.building_type ?? prev.building_type,
       }))
@@ -643,7 +605,7 @@ export function Pharmacies() {
     mutationFn: async () => {
       const payload = {
         id: editingId,
-        ...buildPharmacyPayload({ ...form, country: formCountry }),
+        ...buildPharmacyPayload(lockedForm),
       }
       const res = await api.post<PharmacyMutationResponse>(
         '/sales/api/pharmacy/update/',
@@ -688,12 +650,13 @@ export function Pharmacies() {
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault()
     setFormNotice(null)
-    if (!form.pharmacy_no.trim()) {
-      setFormError('Укажите номер аптеки')
+    const missing = missingFieldsError(lockedForm)
+    if (missing) {
+      setFormError(missing)
       return
     }
     setFormError(null)
-    setPendingRows((prev) => [...prev, { ...form, country: formCountry }])
+    setPendingRows((prev) => [...prev, lockedForm])
     resetForm()
   }
 
@@ -705,8 +668,9 @@ export function Pharmacies() {
 
   const handleUpdate = () => {
     setFormNotice(null)
-    if (!form.pharmacy_no.trim()) {
-      setFormError('Укажите номер аптеки')
+    const missing = missingFieldsError(lockedForm)
+    if (missing) {
+      setFormError(missing)
       return
     }
     setFormError(null)
@@ -728,6 +692,15 @@ export function Pharmacies() {
     setFormError(null)
     geocodeMutation.mutate()
   }
+
+  // Промо → Подтип cascade (see promo-catalog.ts) and its photo gallery,
+  // which only some Промо (СТОЙКИ/КОРНЕР) have.
+  const [promoGalleryOpen, setPromoGalleryOpen] = useState(false)
+  const promoSubtypes = subtypesFor(form.promo)
+  const promoPhotoSubtypes = photoSubtypesFor(form.promo)
+  const selectedPromoSubtype: PromoSubtype | undefined = promoSubtypes.find(
+    (s) => s.name === form.promo_subtype
+  )
 
   const isEditing = editingId !== null
   const formBusy =
@@ -781,52 +754,94 @@ export function Pharmacies() {
                     </div>
                     <div className='space-y-1.5'>
                       <Label>Страна</Label>
-                      <FormSelect
-                        value={formCountry}
-                        options={
-                          locked
-                            ? [countryLock.userCountry]
-                            : (formFilterOptions?.countries ?? [])
-                        }
-                        disabled={locked}
-                        onChange={setFormCountry}
-                      />
+                      {isEditing ? (
+                        <Input
+                          value={formCountry}
+                          disabled
+                          readOnly
+                          className='disabled:opacity-70'
+                        />
+                      ) : (
+                        <FormSelect
+                          value={formCountry}
+                          options={
+                            locked
+                              ? [countryLock.userCountry]
+                              : (formFilterOptions?.countries ?? [])
+                          }
+                          disabled={countryDisabled}
+                          onChange={setFormCountry}
+                        />
+                      )}
                     </div>
                     <div className='space-y-1.5'>
                       <Label>Область</Label>
-                      <FormSelect
-                        value={form.area}
-                        options={formAreaOptions?.options ?? []}
-                        disabled={!formCountry}
-                        placeholder={
-                          formCountry ? 'Не выбрано' : 'Сначала выберите страну'
-                        }
-                        onChange={setFormArea}
-                      />
+                      {isEditing ? (
+                        <Input
+                          value={form.area}
+                          disabled
+                          readOnly
+                          className='disabled:opacity-70'
+                        />
+                      ) : (
+                        <FormSelect
+                          value={form.area}
+                          options={formAreaOptions?.options ?? []}
+                          disabled={!formCountry && !form.area}
+                          placeholder={
+                            formCountry
+                              ? 'Не выбрано'
+                              : 'Сначала выберите страну'
+                          }
+                          onChange={setFormArea}
+                        />
+                      )}
                     </div>
                     <div className='space-y-1.5'>
                       <Label>Регион</Label>
-                      <FormSelect
-                        value={form.region}
-                        options={formRegionOptions?.options ?? []}
-                        disabled={!form.area}
-                        placeholder={
-                          form.area ? 'Не выбрано' : 'Сначала выберите область'
-                        }
-                        onChange={setFormRegion}
-                      />
+                      {isEditing ? (
+                        <Input
+                          value={form.region}
+                          disabled
+                          readOnly
+                          className='disabled:opacity-70'
+                        />
+                      ) : (
+                        <FormSelect
+                          value={form.region}
+                          options={formRegionOptions?.options ?? []}
+                          disabled={!form.area && !form.region}
+                          placeholder={
+                            form.area
+                              ? 'Не выбрано'
+                              : 'Сначала выберите область'
+                          }
+                          onChange={setFormRegion}
+                        />
+                      )}
                     </div>
                     <div className='space-y-1.5'>
                       <Label>Город</Label>
-                      <FormSelect
-                        value={form.city}
-                        options={formCityOptions?.options ?? []}
-                        disabled={!form.region}
-                        placeholder={
-                          form.region ? 'Не выбрано' : 'Сначала выберите регион'
-                        }
-                        onChange={(v) => setField('city', v)}
-                      />
+                      {isEditing ? (
+                        <Input
+                          value={form.city}
+                          disabled
+                          readOnly
+                          className='disabled:opacity-70'
+                        />
+                      ) : (
+                        <FormSelect
+                          value={form.city}
+                          options={formCityOptions?.options ?? []}
+                          disabled={!form.region && !form.city}
+                          placeholder={
+                            form.region
+                              ? 'Не выбрано'
+                              : 'Сначала выберите регион'
+                          }
+                          onChange={(v) => setField('city', v)}
+                        />
+                      )}
                     </div>
                     <div className='space-y-1.5'>
                       <Label>Округ</Label>
@@ -837,9 +852,14 @@ export function Pharmacies() {
                     </div>
                     <div className='space-y-1.5'>
                       <Label>Метро</Label>
-                      <Input
+                      <FormSelect
                         value={form.metro}
-                        onChange={(e) => setField('metro', e.target.value)}
+                        options={formMetroOptions?.options ?? []}
+                        disabled={!form.city && !form.metro}
+                        placeholder={
+                          form.city ? 'Не выбрано' : 'Сначала выберите город'
+                        }
+                        onChange={(v) => setField('metro', v)}
                       />
                     </div>
                   </div>
@@ -855,23 +875,48 @@ export function Pharmacies() {
                       <FormSelect
                         value={form.group_company}
                         options={formFilterOptions?.chains ?? []}
-                        onChange={(v) => setField('group_company', v)}
-                      />
-                    </div>
-                    <div className='space-y-1.5'>
-                      <Label>Подгруппа</Label>
-                      <Input
-                        value={form.subgroup_company}
-                        onChange={(e) =>
-                          setField('subgroup_company', e.target.value)
+                        onChange={(v) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            group_company: v,
+                            subgroup_company: '',
+                          }))
                         }
                       />
                     </div>
                     <div className='space-y-1.5'>
+                      <Label>Подгруппа</Label>
+                      {isEditing ? (
+                        <Input
+                          value={form.subgroup_company}
+                          disabled
+                          readOnly
+                          className='disabled:opacity-70'
+                        />
+                      ) : (
+                        <FormSelect
+                          value={form.subgroup_company}
+                          options={formSubchainOptions?.options ?? []}
+                          disabled={!formCountry && !form.subgroup_company}
+                          placeholder={
+                            formCountry
+                              ? 'Не выбрано'
+                              : 'Сначала выберите страну'
+                          }
+                          onChange={(v) => setField('subgroup_company', v)}
+                        />
+                      )}
+                    </div>
+                    <div className='space-y-1.5'>
                       <Label>Мед. представитель</Label>
                       <FormSelect
-                        value={form.marketing_staff}
-                        options={formFilterOptions?.marketing_staff ?? []}
+                        value={formMarketingStaff}
+                        options={
+                          medrepLocked
+                            ? [formMarketingStaff].filter(Boolean)
+                            : (formFilterOptions?.marketing_staff ?? [])
+                        }
+                        disabled={medrepDisabled}
                         onChange={(v) => setField('marketing_staff', v)}
                       />
                     </div>
@@ -887,7 +932,9 @@ export function Pharmacies() {
                       <Label>Ассортимент</Label>
                       <FormSelect
                         value={form.assortiment}
-                        options={ASSORTIMENT_OPTIONS}
+                        options={
+                          formFilterOptions?.assortiments ?? ASSORTIMENT_OPTIONS
+                        }
                         onChange={(v) => setField('assortiment', v)}
                       />
                     </div>
@@ -902,9 +949,9 @@ export function Pharmacies() {
                     <div className='space-y-1.5'>
                       <Label>Активность</Label>
                       <FormSelect
-                        value={form.activeness}
+                        value={form.pharmacy_activeness}
                         options={ACTIVENESS_OPTIONS}
-                        onChange={(v) => setField('activeness', v)}
+                        onChange={(v) => setField('pharmacy_activeness', v)}
                       />
                     </div>
                     <div className='space-y-1.5'>
@@ -919,22 +966,64 @@ export function Pharmacies() {
                       <Label>Промо</Label>
                       <FormSelect
                         value={form.promo}
-                        options={formFilterOptions?.promos ?? []}
-                        onChange={(v) => setField('promo', v)}
+                        options={PROMO_CODES}
+                        onChange={(v) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            promo: v,
+                            promo_subtype: '',
+                          }))
+                        }
                       />
                     </div>
                     <div className='space-y-1.5'>
+                      <Label>Подтип</Label>
+                      <div className='flex gap-2'>
+                        <div className='min-w-0 flex-1'>
+                          <FormSelect
+                            value={form.promo_subtype}
+                            options={promoSubtypes.map((s) => s.name)}
+                            disabled={!form.promo}
+                            placeholder={
+                              form.promo
+                                ? 'Не выбрано'
+                                : 'Сначала выберите промо'
+                            }
+                            onChange={(v) => setField('promo_subtype', v)}
+                          />
+                        </div>
+                        {promoPhotoSubtypes.length > 0 && (
+                          <Button
+                            type='button'
+                            variant='outline'
+                            onClick={() => setPromoGalleryOpen(true)}
+                          >
+                            <ImageIcon className='size-4' />
+                            Выбрать фото
+                          </Button>
+                        )}
+                      </div>
+                      {selectedPromoSubtype && (
+                        <p className='text-xs text-muted-foreground'>
+                          Бренд: {selectedPromoSubtype.brand || '—'} · Габариты:{' '}
+                          {selectedPromoSubtype.size || '—'}
+                        </p>
+                      )}
+                    </div>
+                    <div className='space-y-1.5'>
                       <Label>Статус</Label>
-                      <Input
+                      <FormSelect
                         value={form.status}
-                        onChange={(e) => setField('status', e.target.value)}
+                        options={formFilterOptions?.statuses ?? ['STANDARD']}
+                        onChange={(v) => setField('status', v)}
                       />
                     </div>
                     <div className='space-y-1.5'>
                       <Label>SKU</Label>
-                      <Input
+                      <FormSelect
                         value={form.sku}
-                        onChange={(e) => setField('sku', e.target.value)}
+                        options={formFilterOptions?.skus ?? []}
+                        onChange={(v) => setField('sku', v)}
                       />
                     </div>
                     <div className='space-y-1.5'>
@@ -1029,9 +1118,7 @@ export function Pharmacies() {
                   </h3>
                   <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
                     <div className='space-y-1.5'>
-                      <Label>
-                        Номер Аптека <span className='text-destructive'>*</span>
-                      </Label>
+                      <Label>Номер Аптека</Label>
                       <Input
                         value={form.pharmacy_no}
                         onChange={(e) =>
@@ -1091,19 +1178,10 @@ export function Pharmacies() {
                       Официальный адрес, Улицу, Дом, Область, Подрайон,
                       point_x/point_y, код страны и тип здания ниже по
                       найденному адресу — эти поля недоступны для ручного ввода
-                      и берутся только из результата геокодирования (DaData).
+                      и берутся только из результата геокодирования.
                     </p>
                   </div>
                   <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-                    <div className='space-y-1.5 lg:col-span-3'>
-                      <Label>Официальный адрес</Label>
-                      <Input
-                        value={form.full_address}
-                        disabled
-                        readOnly
-                        className='disabled:opacity-70'
-                      />
-                    </div>
                     <div className='space-y-1.5'>
                       <Label>Улица</Label>
                       <Input
@@ -1125,7 +1203,7 @@ export function Pharmacies() {
                     <div className='space-y-1.5'>
                       <Label>Область (Administrative)</Label>
                       <Input
-                        value={form.area}
+                        value={form.administrative_area_name}
                         disabled
                         readOnly
                         className='disabled:opacity-70'
@@ -1134,7 +1212,7 @@ export function Pharmacies() {
                     <div className='space-y-1.5'>
                       <Label>Подрайон (Sub-administrative)</Label>
                       <Input
-                        value={form.region}
+                        value={form.sub_administrative_area_name}
                         disabled
                         readOnly
                         className='disabled:opacity-70'
@@ -1309,6 +1387,49 @@ export function Pharmacies() {
           </Card>
         )}
 
+        <Dialog open={promoGalleryOpen} onOpenChange={setPromoGalleryOpen}>
+          <DialogContent className='sm:max-w-4xl'>
+            <DialogHeader>
+              <DialogTitle>Выбрать фото — {form.promo}</DialogTitle>
+              <DialogDescription>
+                Нажмите на фото, чтобы выбрать подтип
+              </DialogDescription>
+            </DialogHeader>
+            {/* Scrolls on its own so a long gallery never overflows the
+                dialog; photos use object-contain at a fixed height so
+                nothing (shelf labels etc.) gets cropped. */}
+            <div className='max-h-[70vh] overflow-y-auto pe-1'>
+              <div className='grid grid-cols-2 gap-4 lg:grid-cols-3'>
+                {promoPhotoSubtypes.map((s) => (
+                  <button
+                    key={s.name}
+                    type='button'
+                    onClick={() => {
+                      setField('promo_subtype', s.name)
+                      setPromoGalleryOpen(false)
+                    }}
+                    className={
+                      'overflow-hidden rounded-md border text-start transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none' +
+                      (form.promo_subtype === s.name
+                        ? ' border-primary ring-2 ring-primary'
+                        : '')
+                    }
+                  >
+                    <img
+                      src={s.photo}
+                      alt={s.name}
+                      className='h-56 w-full bg-muted object-contain p-2'
+                    />
+                    <p className='mt-2 px-2 pb-2 text-center text-sm font-medium'>
+                      {s.name}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <ConfirmDialog
           open={deleteConfirmOpen}
           onOpenChange={setDeleteConfirmOpen}
@@ -1326,144 +1447,6 @@ export function Pharmacies() {
           confirmText='Удалить'
           cancelBtnText='Отмена'
         />
-
-        <Card className='mb-4'>
-          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-            <CardHeader className='flex flex-row items-center justify-between space-y-0'>
-              <CardTitle className='text-base'>Фильтры</CardTitle>
-              <div className='flex items-center gap-2'>
-                <Button variant='ghost' size='sm' onClick={resetFilters}>
-                  Сбросить фильтры
-                </Button>
-                <CollapsibleTrigger asChild>
-                  <Button variant='ghost' size='icon'>
-                    <ChevronDown
-                      className={cn(
-                        'size-4 transition-transform',
-                        filtersOpen && 'rotate-180'
-                      )}
-                    />
-                  </Button>
-                </CollapsibleTrigger>
-              </div>
-            </CardHeader>
-            <CollapsibleContent>
-              <CardContent>
-                <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-                  <FilterSelect
-                    label='Страна'
-                    value={effectiveCountry || undefined}
-                    options={
-                      locked
-                        ? [countryLock.userCountry]
-                        : (filterOptions?.countries ?? [])
-                    }
-                    disabled={locked}
-                    onChange={(v) =>
-                      applyFilter({
-                        country: v,
-                        area: undefined,
-                        region: undefined,
-                        city: undefined,
-                        group_company: undefined,
-                        subgroup_company: undefined,
-                      })
-                    }
-                  />
-                  <FilterSelect
-                    label='Область'
-                    value={search.area}
-                    options={areaOptions?.options ?? []}
-                    disabled={!effectiveCountry}
-                    placeholder={
-                      effectiveCountry ? 'Все' : 'Сначала выберите страну'
-                    }
-                    onChange={(v) =>
-                      applyFilter({
-                        area: v,
-                        region: undefined,
-                        city: undefined,
-                      })
-                    }
-                  />
-                  <FilterSelect
-                    label='Регион'
-                    value={search.region}
-                    options={regionOptions?.options ?? []}
-                    disabled={!search.area}
-                    placeholder={
-                      search.area ? 'Все' : 'Сначала выберите область'
-                    }
-                    onChange={(v) =>
-                      applyFilter({ region: v, city: undefined })
-                    }
-                  />
-                  <FilterSelect
-                    label='Город'
-                    value={search.city}
-                    options={cityOptions?.options ?? []}
-                    disabled={!search.region}
-                    placeholder={
-                      search.region ? 'Все' : 'Сначала выберите регион'
-                    }
-                    onChange={(v) => applyFilter({ city: v })}
-                  />
-                  <FilterSelect
-                    label='Сеть'
-                    value={search.group_company}
-                    options={filterOptions?.chains ?? []}
-                    onChange={(v) =>
-                      applyFilter({
-                        group_company: v,
-                        subgroup_company: undefined,
-                      })
-                    }
-                  />
-                  <FilterSelect
-                    label='Подгруппа'
-                    value={search.subgroup_company}
-                    options={subchainOptions?.options ?? []}
-                    disabled={!search.group_company}
-                    placeholder={
-                      search.group_company ? 'Все' : 'Сначала выберите сеть'
-                    }
-                    onChange={(v) => applyFilter({ subgroup_company: v })}
-                  />
-                  <FilterSelect
-                    label='Категория'
-                    value={search.pharmacy_category}
-                    options={filterOptions?.categories ?? []}
-                    onChange={(v) => applyFilter({ pharmacy_category: v })}
-                  />
-                  <FilterSelect
-                    label='Тип'
-                    value={search.pharmacy_type}
-                    options={filterOptions?.types ?? []}
-                    onChange={(v) => applyFilter({ pharmacy_type: v })}
-                  />
-                  <FilterSelect
-                    label='Промо'
-                    value={search.promo}
-                    options={filterOptions?.promos ?? []}
-                    onChange={(v) => applyFilter({ promo: v })}
-                  />
-                  <FilterSelect
-                    label='Мед. представитель'
-                    value={search.marketing_staff}
-                    options={filterOptions?.marketing_staff ?? []}
-                    onChange={(v) => applyFilter({ marketing_staff: v })}
-                  />
-                  <FilterSelect
-                    label='Активность'
-                    value={search.pharmacy_activeness}
-                    options={ACTIVENESS_OPTIONS}
-                    onChange={(v) => applyFilter({ pharmacy_activeness: v })}
-                  />
-                </div>
-              </CardContent>
-            </CollapsibleContent>
-          </Collapsible>
-        </Card>
 
         <Card>
           <CardHeader className='flex flex-row flex-wrap items-center justify-between gap-3 space-y-0'>
@@ -1567,47 +1550,6 @@ export function Pharmacies() {
   )
 }
 
-// A single "<Label/><Select/>" filter field with a built-in "Все" (no
-// filter) option — shared by every dropdown in the filter panel above.
-function FilterSelect({
-  label,
-  value,
-  options,
-  onChange,
-  disabled,
-  placeholder = 'Все',
-}: {
-  label: string
-  value: string | undefined
-  options: string[]
-  onChange: (value: string | undefined) => void
-  disabled?: boolean
-  placeholder?: string
-}) {
-  return (
-    <div className='space-y-1.5'>
-      <Label>{label}</Label>
-      <Select
-        value={value ?? ALL}
-        onValueChange={(v) => onChange(v === ALL ? undefined : v)}
-        disabled={disabled}
-      >
-        <SelectTrigger className='w-full'>
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL}>Все</SelectItem>
-          {options.map((o) => (
-            <SelectItem key={o} value={o}>
-              {o}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  )
-}
-
 // A plain "<Select/>" for the entry form — no "Все" item (this isn't a
 // filter, an empty value here just means the field wasn't filled in).
 function FormSelect({
@@ -1623,22 +1565,36 @@ function FormSelect({
   disabled?: boolean
   placeholder?: string
 }) {
-  // The current value can come from somewhere other than this list —
-  // "Найти адрес" fills Область/Регион straight from DaData, and Компания
-  // itself always defaults to a fixed value — rather than have the Select
-  // silently show nothing for a value it doesn't recognize, make sure that
-  // value is always one of the render options.
+  // The current value is always shown, whether or not it's in `options`:
+  // "Найти адрес" can set values the cascade lists don't know, and clicking
+  // a table row sets Город/Регион/Область before their lists return. So:
+  //  1. The value is always one of the items (added up front unless that
+  //     exact string is already there), so Radix can select it.
+  //  2. SelectValue is given the label directly. Otherwise Radix only fills
+  //     the trigger once the matching item has rendered, which left the
+  //     field blank on the first row click when the list arrived late.
+  // Blank and duplicate options are dropped — Radix rejects an empty item
+  // value, and a repeated one would duplicate its React key.
+  const trimmed = (value ?? '').trim()
+  const cleanOptions = Array.from(
+    new Set(options.filter((o) => (o ?? '').trim() !== ''))
+  )
   const allOptions =
-    value !== '' && !options.includes(value) ? [value, ...options] : options
+    trimmed !== '' && !cleanOptions.includes(value)
+      ? [value, ...cleanOptions]
+      : cleanOptions
+  const selectValue = trimmed === '' ? EMPTY : value
 
   return (
     <Select
-      value={value === '' ? EMPTY : value}
+      value={selectValue}
       onValueChange={(v) => onChange(v === EMPTY ? '' : v)}
       disabled={disabled}
     >
       <SelectTrigger className='w-full'>
-        <SelectValue placeholder={placeholder} />
+        <SelectValue placeholder={placeholder}>
+          {selectValue === EMPTY ? '—' : value}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={EMPTY}>—</SelectItem>
