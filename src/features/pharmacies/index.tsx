@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { AxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
@@ -55,7 +56,7 @@ import { FormSelect } from './form-select'
 import { PharmacyHardware } from './pharmacy-hardware'
 import {
   type PharmacyApiResponse,
-  type PharmacyBulkSaveResponse,
+  type PharmacyCreateResponse,
   type PharmacyCascadeOptions,
   type PharmacyDetailResponse,
   type PharmacyFilterOptions,
@@ -200,19 +201,24 @@ const REQUIRED_FIELDS: { key: keyof PharmacyFormValues; label: string }[] = [
 
 const REQUIRED_KEYS = new Set(REQUIRED_FIELDS.map(({ key }) => key))
 
-/** A form <Label> that gets a red * when `field` is in REQUIRED_FIELDS. */
+/** A form <Label> that gets a red * when `field` is in REQUIRED_FIELDS (or
+ * is made `required` for the moment, like Номер аптеки for a duplicate). */
 function FieldLabel({
   field,
+  required,
+  htmlFor,
   children,
 }: {
   field: keyof PharmacyFormValues
+  required?: boolean
+  htmlFor?: string
   children: ReactNode
 }) {
   return (
-    <Label>
+    <Label htmlFor={htmlFor}>
       <span>
         {children}
-        {REQUIRED_KEYS.has(field) && (
+        {(required || REQUIRED_KEYS.has(field)) && (
           <span className='text-destructive'> *</span>
         )}
       </span>
@@ -228,6 +234,52 @@ function missingFieldsError(form: PharmacyFormValues): string | null {
   return missing.length
     ? `Заполните обязательные поля: ${missing.join(', ')}`
     : null
+}
+
+// POST /sales/api/pharmacy/create/ answers 409 {duplicate: true} when a
+// pharmacy with the same Группа компаний + Подгруппа + Полный адрес already
+// exists; resent with force: true it saves anyway, but then requires a
+// Номер аптеки that's unique for that address (400 + error otherwise).
+const DUPLICATE_MESSAGE = 'аптека с таким адресом уже сохранена в базе'
+const DUPLICATE_NO_REQUIRED =
+  'Введите «Номер аптеки» — он обязателен для сохранения дубликата.'
+
+type CreateOutcome =
+  | { kind: 'created' }
+  | { kind: 'duplicate'; message: string }
+  | { kind: 'error'; message: string }
+
+async function createPharmacy(
+  form: PharmacyFormValues,
+  force = false
+): Promise<CreateOutcome> {
+  try {
+    const res = await api.post<PharmacyCreateResponse>(
+      '/sales/api/pharmacy/create/',
+      { ...buildPharmacyPayload(form), ...(force ? { force: true } : {}) }
+    )
+    return res.data.error
+      ? { kind: 'error', message: res.data.error }
+      : { kind: 'created' }
+  } catch (err) {
+    const body =
+      err instanceof AxiosError
+        ? (err.response?.data as
+            | { duplicate?: boolean; message?: string; error?: string }
+            | undefined)
+        : undefined
+    if (
+      err instanceof AxiosError &&
+      err.response?.status === 409 &&
+      body?.duplicate
+    ) {
+      return { kind: 'duplicate', message: body.message || DUPLICATE_MESSAGE }
+    }
+    return {
+      kind: 'error',
+      message: body?.error || 'Не удалось сохранить аптеку',
+    }
+  }
 }
 
 const route = getRouteApi('/_authenticated/pharmacies/')
@@ -407,6 +459,17 @@ export function Pharmacies() {
   // brand's table. Mirrors Doctor Entry's Добавить/Сохранить flow.
   const [pendingRows, setPendingRows] = useState<PharmacyFormValues[]>([])
 
+  // Duplicate flow: Сохранить stopped on the first pending row the backend
+  // called a duplicate — `duplicatePrompt` asks Да/Нет about it. Да moves
+  // that row into the form in `forceMode`: Номер аптеки becomes required and
+  // the next Сохранить resends it with force: true.
+  const [duplicatePrompt, setDuplicatePrompt] = useState<string | null>(null)
+  const [forceMode, setForceMode] = useState(false)
+  const pharmacyNoRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (forceMode) pharmacyNoRef.current?.focus()
+  }, [forceMode])
+
   const setField = <K extends keyof PharmacyFormValues>(
     key: K,
     value: PharmacyFormValues[K]
@@ -416,6 +479,7 @@ export function Pharmacies() {
     setForm(DEFAULT_PHARMACY_FORM)
     setEditingId(null)
     setFormError(null)
+    setForceMode(false)
   }
 
   const removePendingRow = (index: number) =>
@@ -705,27 +769,42 @@ export function Pharmacies() {
     },
   })
 
-  // Сохранить — flushes every staged (Добавить аптека'd) row to the
-  // backend in one request, each routed to its own brand's table
-  // server-side. {rows: [...]} in, {created, updated} out.
-  const bulkSaveMutation = useMutation({
+  // Сохранить — writes the staged (Добавить аптека'd) rows one by one
+  // through create/, in order, each to its own brand's table. Stops at the
+  // first duplicate (→ Да/Нет) or error; rows already written leave the
+  // list, the rest stay staged.
+  const saveAllMutation = useMutation({
     mutationFn: async () => {
-      const rows = pendingRows.map((row) => buildPharmacyPayload(row))
-      const res = await api.post<PharmacyBulkSaveResponse>(
-        '/sales/api/pharmacy/bulk-save/',
-        { rows }
-      )
-      return res.data
+      let created = 0
+      for (const row of pendingRows) {
+        const outcome = await createPharmacy(row)
+        if (outcome.kind !== 'created') return { created, stop: outcome }
+        created += 1
+      }
+      return { created, stop: null }
     },
-    onSuccess: (data) => {
-      if (data.error) {
-        setFormError(data.error)
+    onSuccess: ({ created, stop }) => {
+      if (created > 0) {
+        setPendingRows((prev) => prev.slice(created))
+        setFormNotice(`Сохранено: добавлено ${created}`)
+        queryClient.invalidateQueries({ queryKey: ['pharmacies'] })
+      }
+      if (stop?.kind === 'duplicate') setDuplicatePrompt(stop.message)
+      else if (stop?.kind === 'error') setFormError(stop.message)
+    },
+  })
+
+  // Сохранить in forceMode — the duplicate the user said Да to, with
+  // force: true. A 400 (no / an already-used Номер аптеки) keeps it open.
+  const forceSaveMutation = useMutation({
+    mutationFn: () => createPharmacy(lockedForm, true),
+    onSuccess: (outcome) => {
+      if (outcome.kind !== 'created') {
+        setFormError(outcome.message)
         return
       }
-      setFormNotice(
-        `Сохранено: добавлено ${data.created}, обновлено ${data.updated}`
-      )
-      setPendingRows([])
+      setFormNotice('Аптека сохранена')
+      resetForm()
       queryClient.invalidateQueries({ queryKey: ['pharmacies'] })
     },
   })
@@ -778,6 +857,11 @@ export function Pharmacies() {
   // (below) is what actually writes staged rows to the DB.
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault()
+    // Enter in a field submits the form — in forceMode that means Сохранить.
+    if (forceMode) {
+      handleSaveAll()
+      return
+    }
     setFormNotice(null)
     const missing = missingFieldsError(lockedForm)
     if (missing) {
@@ -791,8 +875,32 @@ export function Pharmacies() {
 
   const handleSaveAll = () => {
     setFormNotice(null)
+    if (forceMode) {
+      const missing = missingFieldsError(lockedForm)
+      if (missing || !lockedForm.pharmacy_no.trim()) {
+        setFormError(missing ?? DUPLICATE_NO_REQUIRED)
+        pharmacyNoRef.current?.focus()
+        return
+      }
+      setFormError(null)
+      forceSaveMutation.mutate()
+      return
+    }
     setFormError(null)
-    bulkSaveMutation.mutate()
+    saveAllMutation.mutate()
+  }
+
+  // Да — the duplicate (always the first staged row: saving stops there)
+  // moves into the form to get its Номер аптеки.
+  const handleDuplicateYes = () => {
+    const [row, ...rest] = pendingRows
+    setDuplicatePrompt(null)
+    if (!row) return
+    setPendingRows(rest)
+    setForm(row)
+    setEditingId(null)
+    setFormError(null)
+    setForceMode(true)
   }
 
   const handleUpdate = () => {
@@ -809,6 +917,12 @@ export function Pharmacies() {
   const handleRowClick = (id: string) => {
     if (!id) return
     setFormNotice(null)
+    // Opening another record mustn't lose a duplicate still being completed
+    // — it goes back to the staged list.
+    if (forceMode) {
+      setPendingRows((prev) => [lockedForm, ...prev])
+      setForceMode(false)
+    }
     detailMutation.mutate({ brand, id })
   }
 
@@ -831,7 +945,8 @@ export function Pharmacies() {
     geocodeMutation.isPending ||
     updateMutation.isPending ||
     deleteMutation.isPending ||
-    bulkSaveMutation.isPending
+    saveAllMutation.isPending ||
+    forceSaveMutation.isPending
 
   return (
     <>
@@ -1211,8 +1326,16 @@ export function Pharmacies() {
                   </h3>
                   <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
                     <div className='space-y-1.5'>
-                      <Label>Номер Аптека</Label>
+                      <FieldLabel
+                        field='pharmacy_no'
+                        required={forceMode}
+                        htmlFor='pharmacy-no'
+                      >
+                        Номер Аптека
+                      </FieldLabel>
                       <Input
+                        id='pharmacy-no'
+                        ref={pharmacyNoRef}
                         value={form.pharmacy_no}
                         onChange={(e) =>
                           setField('pharmacy_no', e.target.value)
@@ -1360,6 +1483,16 @@ export function Pharmacies() {
                 </div>
               </fieldset>
 
+              {forceMode && (
+                <Alert className='border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300'>
+                  <AlertCircle />
+                  <AlertTitle>
+                    Сохранение дубликата: укажите «Номер аптеки» и нажмите
+                    «Сохранить»
+                  </AlertTitle>
+                </Alert>
+              )}
+
               {formError && (
                 <Alert variant='destructive'>
                   <AlertCircle />
@@ -1401,16 +1534,24 @@ export function Pharmacies() {
                   {updateMutation.isPending && <BrandSpinner size={16} />}
                   Обновить
                 </Button>
-                <Button type='submit' disabled={isEditing || formBusy}>
+                <Button
+                  type='submit'
+                  disabled={isEditing || forceMode || formBusy}
+                >
                   Добавить аптека
                 </Button>
                 <Button
                   type='button'
                   onClick={handleSaveAll}
-                  disabled={pendingRows.length === 0 || formBusy}
+                  disabled={
+                    (!forceMode && pendingRows.length === 0) || formBusy
+                  }
                 >
-                  {bulkSaveMutation.isPending && <BrandSpinner size={16} />}
-                  Сохранить ({pendingRows.length})
+                  {(saveAllMutation.isPending ||
+                    forceSaveMutation.isPending) && <BrandSpinner size={16} />}
+                  {forceMode
+                    ? 'Сохранить'
+                    : `Сохранить (${pendingRows.length})`}
                 </Button>
               </div>
             </form>
@@ -1470,6 +1611,16 @@ export function Pharmacies() {
             </CardContent>
           </Card>
         )}
+
+        <ConfirmDialog
+          open={duplicatePrompt !== null}
+          onOpenChange={(open) => !open && setDuplicatePrompt(null)}
+          handleConfirm={handleDuplicateYes}
+          title={duplicatePrompt ?? DUPLICATE_MESSAGE}
+          desc='Хотите её сохранить?'
+          confirmText='Да'
+          cancelBtnText='Нет'
+        />
 
         <ConfirmDialog
           open={deleteConfirmOpen}
