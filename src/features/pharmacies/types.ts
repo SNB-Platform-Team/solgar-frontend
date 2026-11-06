@@ -124,6 +124,59 @@ export type PharmacyDetailResponse = Partial<PharmacyDetail> & {
   /** Where the form's Статус actually lives in the DB (`status` itself is
    * an integer soft-delete flag). */
   pharmacy_group?: string
+  /** The legacy pharmacy id (shown as «ID аптеки»); "" when unset/0. */
+  pharmacy_id?: string | number | null
+  error?: string
+}
+
+/** A saved equipment photo — `url` is a ready-to-open Blob (SAS) link. */
+export interface PharmacyHardwarePhoto {
+  id: number
+  url: string
+  name: string
+}
+
+/** One Промо + Подтип pair a pharmacy has, with its statuses. */
+export interface PharmacyHardwareRow {
+  /** The row's id in its source table — equipment_id for "new" rows. */
+  id?: number
+  /** "new" — the equipment table (deletable, may have photos); "legacy" —
+   * corner_info (read-only, no photos). */
+  source: 'new' | 'legacy'
+  /** The pharmacy's legacy pharmacy_id — the same on every row of one
+   * pharmacy, and the same as the response's own pharmacy_id. */
+  apteka_id?: string | number | null
+  /** Empty on legacy rows: corner_info holds no Промо name. */
+  promo: string
+  subtype: string
+  /** e.g. 180x30x20 — formatted from width/length/depth on legacy rows. */
+  size?: string
+  photos?: PharmacyHardwarePhoto[]
+  /** 1 = Активно, 0 = Неактивно */
+  status: number
+  status_label: string
+  /** corner_info's approve_status, as a string: "0" to "5". */
+  hardware_status: string
+  hardware_status_label: string
+}
+
+/** Shape of GET /sales/api/pharmacy/corner-log/?brand=&id= — existing rows. */
+export interface PharmacyCornerLogResponse {
+  /** The pharmacy's legacy pharmacy_id (shown as «ID аптеки»). */
+  pharmacy_id: string | number | null
+  rows: PharmacyHardwareRow[]
+  error?: string
+}
+
+/** Shape of POST /sales/api/pharmacy/equipment/save/ — the created row. */
+export interface PharmacyEquipmentSaveResponse {
+  row?: PharmacyHardwareRow
+  error?: string
+}
+
+/** Shape of POST /sales/api/pharmacy/equipment/delete/ */
+export interface PharmacyEquipmentDeleteResponse {
+  ok?: boolean
   error?: string
 }
 

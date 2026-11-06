@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Loader2 } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { api } from '@/lib/api'
 import { useCountryLock } from '@/hooks/use-country-lock'
 import { usePharmacyChains } from '@/hooks/use-pharmacy-chains'
@@ -15,11 +17,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { BrandSpinner } from '@/components/brand-spinner'
 import { ChainCombobox } from '@/components/chain-combobox'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { DataTableAuto } from '@/components/data-table/data-table-auto'
 import { DateInput } from '@/components/date-input'
+import { ExportExcelButton } from '@/components/export-excel-button'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -51,7 +53,7 @@ const DEFAULT_BRANDS: ChainSalesReportOption[] = [
 ]
 
 const DEFAULT_FILTERS: ChainSalesReportFilters = {
-  rep_type: 'CHAIN_SALES',
+  rep_type: 'BRAND_SALES',
   brand: '',
   country: '',
   chain: '',
@@ -61,11 +63,30 @@ const DEFAULT_FILTERS: ChainSalesReportFilters = {
   end: '',
 }
 
+// yyyy-MM-dd in local time (toISOString would shift a day around midnight).
+const toISODate = (d: Date) => {
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mm}-${dd}`
+}
+
+// Дата по = today, Дата с = 6 months back — the backend's own limit for
+// this report, so the default range is always accepted.
+const defaultDateRange = () => {
+  const begin = new Date()
+  begin.setMonth(begin.getMonth() - 6)
+  return { begin: toISODate(begin), end: toISODate(new Date()) }
+}
+
 export function ChainReport() {
   // Draft filters — edited freely by the user, only sent to the backend
   // once "Сформировать отчёт" is pressed (see `committed` below).
-  const [filters, setFilters] =
-    useState<ChainSalesReportFilters>(DEFAULT_FILTERS)
+  // Only the draft starts with dates — `committed` stays on DEFAULT_FILTERS,
+  // so nothing is requested with them until the button is pressed.
+  const [filters, setFilters] = useState<ChainSalesReportFilters>(() => ({
+    ...DEFAULT_FILTERS,
+    ...defaultDateRange(),
+  }))
   const [committed, setCommitted] = useState<{
     run: boolean
     filters: ChainSalesReportFilters
@@ -91,21 +112,27 @@ export function ChainReport() {
   const { chains, isLoading: chainsLoading } =
     usePharmacyChains(effectiveCountry)
 
-  const { data, isLoading, isFetching, error } =
+  // The report's own query params — shared by the report query and
+  // «Скачать в Excel», so the export is exactly what's on screen.
+  const reportParams = (f: typeof committed.filters) => {
+    const params = new URLSearchParams()
+    params.set('rep_type', f.rep_type)
+    params.set('brand', f.brand)
+    params.set('country', f.country)
+    params.set('chain', f.chain)
+    params.set('city', f.city)
+    params.set('product', f.product)
+    params.set('begin', f.begin)
+    params.set('end', f.end)
+    return params
+  }
+
+  const { data, isFetching, isPlaceholderData, error } =
     useQuery<ChainSalesReportResponse>({
       queryKey: ['chain-sales-report', committed.run, committed.filters],
       queryFn: async () => {
-        const f = committed.filters
-        const params = new URLSearchParams()
+        const params = reportParams(committed.filters)
         if (committed.run) params.set('run', '1')
-        params.set('rep_type', f.rep_type)
-        params.set('brand', f.brand)
-        params.set('country', f.country)
-        params.set('chain', f.chain)
-        params.set('city', f.city)
-        params.set('product', f.product)
-        params.set('begin', f.begin)
-        params.set('end', f.end)
         const res = await api.get<ChainSalesReportResponse>(
           `/sales/api/chain-sales-report/?${params}`
         )
@@ -132,7 +159,12 @@ export function ChainReport() {
 
   const report = data?.report ?? null
   const hasError = Boolean(error) || Boolean(data?.error)
-  const showSkeleton = isLoading && !data
+  // isLoading alone misses this: placeholderData keeps the previous response
+  // in `data` while a new report is fetched, so isLoading stays false and the
+  // stale (often empty) response looked like a finished report. A background
+  // refetch of a report already on screen just dims it (see below) instead.
+  const reportLoading =
+    committed.run && isFetching && (isPlaceholderData || !report?.rows.length)
 
   // DataTableAuto wants plain objects, not the backend's parallel
   // columns/rows arrays — report.columns[i] names report.rows[*][i].
@@ -142,6 +174,16 @@ export function ChainReport() {
       Object.fromEntries(report.columns.map((col, i) => [col, row[i]]))
     )
   }, [report])
+
+  // Ekrandaki tabloyu (columns + rows) oldugu gibi Excel'e dokup indirir.
+  const handleExcelDownload = () => {
+    if (!report || report.rows.length === 0) return
+    const aoa = [report.columns, ...report.rows]
+    const ws = XLSX.utils.aoa_to_sheet(aoa)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Отчёт')
+    XLSX.writeFile(wb, 'аптечная_сеть_продаж.xlsx')
+  }
 
   return (
     <>
@@ -277,7 +319,17 @@ export function ChainReport() {
                 </div>
               </div>
 
-              <div className='flex justify-end'>
+              <div className='flex flex-wrap justify-end gap-2'>
+                <ExportExcelButton
+                  getUrl={() =>
+                    `/sales/api/chain-sales-report/export/?${reportParams(committed.filters)}`
+                  }
+                  fallbackName='prosmotr_as.xlsx'
+                  disabled={
+                    !committed.run ||
+                    !(committed.filters.begin && committed.filters.end)
+                  }
+                />
                 <Button type='submit' disabled={isFetching}>
                   Сформировать отчёт
                 </Button>
@@ -288,31 +340,37 @@ export function ChainReport() {
 
         <Card>
           <CardHeader className='flex flex-row flex-wrap items-center justify-between gap-3 space-y-0'>
-            <CardTitle className='text-base'>Результат</CardTitle>
-            {committed.run &&
-              (report ? (
-                <span className='text-sm text-muted-foreground'>
-                  Строк:{' '}
-                  <span className='font-medium text-foreground'>
-                    {report.total_rows}
-                  </span>
-                </span>
-              ) : !hasError && !showSkeleton ? (
+            <div className='flex items-center gap-3'>
+              <CardTitle className='text-base'>Результат</CardTitle>
+              {reportLoading ? (
                 <Skeleton className='h-4 w-24' />
-              ) : null)}
+              ) : (
+                committed.run &&
+                report && (
+                  <span className='text-sm text-muted-foreground'>
+                    Строк:{' '}
+                    <span className='font-medium text-foreground'>
+                      {report.total_rows}
+                    </span>
+                  </span>
+                )
+              )}
+            </div>
+            {!reportLoading && report && report.rows.length > 0 && (
+              <Button variant='outline' size='sm' onClick={handleExcelDownload}>
+                Скачать Excel
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
-            {!committed.run ? (
-              <div className='py-16 text-center text-muted-foreground italic'>
-                Выберите период и нажмите «Сформировать отчёт»
+            {reportLoading ? (
+              <div className='flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground'>
+                <Loader2 className='size-8 animate-spin' />
+                <span className='text-sm'>Формирование отчёта...</span>
               </div>
-            ) : hasError ? (
+            ) : committed.run && hasError ? (
               <div className='rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive'>
                 {data?.error || 'Ошибка загрузки данных'}
-              </div>
-            ) : showSkeleton ? (
-              <div className='flex items-center justify-center py-16'>
-                <BrandSpinner size={48} label='Загрузка данных' />
               </div>
             ) : report && report.rows.length > 0 ? (
               <div
@@ -326,9 +384,14 @@ export function ChainReport() {
                   searchPlaceholder='Поиск по таблице...'
                 />
               </div>
-            ) : (
+            ) : report ? (
               <div className='py-16 text-center text-muted-foreground italic'>
                 Нет данных
+              </div>
+            ) : (
+              <div className='py-16 text-center text-muted-foreground italic'>
+                {data?.message ||
+                  'Выберите фильтры и нажмите «Сформировать отчёт».'}
               </div>
             )}
           </CardContent>

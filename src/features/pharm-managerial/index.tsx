@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useCountryLock } from '@/hooks/use-country-lock'
 import { Button } from '@/components/ui/button'
@@ -21,9 +22,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { BrandSpinner } from '@/components/brand-spinner'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { DateInput } from '@/components/date-input'
+import { ExportExcelButton } from '@/components/export-excel-button'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -113,24 +114,28 @@ const DEFAULT_FILTERS: PharmManagerialFilters = {
 }
 
 export function PharmManagerial() {
-  // Draft filters — edited freely by the user, only sent to the backend once
-  // "Показать отчёт" is pressed (see `committed` below).
+  // No apply step: the report runs off these directly, so it re-runs as soon
+  // as any of them changes. `started` holds that back until the first change
+  // — until then the page only asks for its options (see the query below).
   const [filters, setFilters] =
     useState<PharmManagerialFilters>(DEFAULT_FILTERS)
-  const [committed, setCommitted] = useState<{
-    run: boolean
-    filters: PharmManagerialFilters
-  }>({ run: false, filters: DEFAULT_FILTERS })
+  const [started, setStarted] = useState(false)
+  const changeFilters = (
+    update: (prev: PharmManagerialFilters) => PharmManagerialFilters
+  ) => {
+    setFilters(update)
+    setStarted(true)
+  }
 
   const setFilter = (key: keyof PharmManagerialFilters, value: string) =>
-    setFilters((prev) => ({ ...prev, [key]: value }))
+    changeFilters((prev) => ({ ...prev, [key]: value }))
 
   // Cascades — picking a parent invalidates everything below it.
   //   Компания → Страна/Сеть/… (different tables server-side, reset all)
   //   Страна → Округ → Регион → Город
   //   Страна → Сеть → Подсеть
   const setBrand = (value: string) =>
-    setFilters((prev) => ({
+    changeFilters((prev) => ({
       ...prev,
       brand: value,
       country: '',
@@ -144,7 +149,7 @@ export function PharmManagerial() {
       medrep: '',
     }))
   const setCountry = (value: string) =>
-    setFilters((prev) => ({
+    changeFilters((prev) => ({
       ...prev,
       country: value,
       district: '',
@@ -154,11 +159,16 @@ export function PharmManagerial() {
       subchain: '',
     }))
   const setDistrict = (value: string) =>
-    setFilters((prev) => ({ ...prev, district: value, region: '', city: '' }))
+    changeFilters((prev) => ({
+      ...prev,
+      district: value,
+      region: '',
+      city: '',
+    }))
   const setRegion = (value: string) =>
-    setFilters((prev) => ({ ...prev, region: value, city: '' }))
+    changeFilters((prev) => ({ ...prev, region: value, city: '' }))
   const setChain = (value: string) =>
-    setFilters((prev) => ({ ...prev, chain: value, subchain: '' }))
+    changeFilters((prev) => ({ ...prev, chain: value, subchain: '' }))
 
   // Country access is per-user — everyone but an admin is pinned to their
   // own country and can't change it (see useCountryLock).
@@ -257,31 +267,46 @@ export function PharmManagerial() {
     (effectiveCountry ? countryChainOptions?.chains : filterOptions?.chains) ??
     []
 
-  const { data, isLoading, isFetching, error } =
+  // The report needs both dates; a cleared one waits until it's filled in.
+  const run = started && Boolean(filters.begin && filters.end)
+  const queryFilters = run
+    ? { ...filters, country: effectiveCountry }
+    : DEFAULT_FILTERS
+
+  // The report's own query params — shared by the report query and
+  // «Скачать в Excel», so the export is exactly what's on screen.
+  const reportParams = (f: typeof queryFilters) => {
+    const params = new URLSearchParams()
+    params.set('brand', f.brand)
+    params.set('rep_type', f.rep_type)
+    params.set('parameter', f.parameter)
+    params.set('country', f.country)
+    params.set('district', f.district)
+    params.set('region', f.region)
+    params.set('city', f.city)
+    params.set('chain', f.chain)
+    params.set('subchain', f.subchain)
+    params.set('assortiment', f.assortiment)
+    params.set('pharmacy_type', f.pharmacy_type)
+    params.set('promo', f.promo)
+    params.set('medrep', f.medrep)
+    params.set('activeness', f.activeness)
+    params.set('begin', f.begin)
+    params.set('end', f.end)
+    return params
+  }
+
+  const { data, isFetching, isPlaceholderData, error, refetch } =
     useQuery<PharmManagerialResponse>({
-      queryKey: ['pharm-managerial', committed.run, committed.filters],
-      queryFn: async () => {
-        const f = committed.filters
-        const params = new URLSearchParams()
-        if (committed.run) params.set('run', '1')
-        params.set('brand', f.brand)
-        params.set('rep_type', f.rep_type)
-        params.set('parameter', f.parameter)
-        params.set('country', f.country)
-        params.set('district', f.district)
-        params.set('region', f.region)
-        params.set('city', f.city)
-        params.set('chain', f.chain)
-        params.set('subchain', f.subchain)
-        params.set('assortiment', f.assortiment)
-        params.set('pharmacy_type', f.pharmacy_type)
-        params.set('promo', f.promo)
-        params.set('medrep', f.medrep)
-        params.set('activeness', f.activeness)
-        params.set('begin', f.begin)
-        params.set('end', f.end)
+      queryKey: ['pharm-managerial', run, queryFilters],
+      // `signal` is what actually aborts a superseded request — the report
+      // is heavy, and without it every quick change would still run to the end.
+      queryFn: async ({ signal }) => {
+        const params = reportParams(queryFilters)
+        if (run) params.set('run', '1')
         const res = await api.get<PharmManagerialResponse>(
-          `/sales/api/pharm-managerial/?${params}`
+          `/sales/api/pharm-managerial/?${params}`,
+          { signal }
         )
         return res.data
       },
@@ -292,17 +317,21 @@ export function PharmManagerial() {
   const repTypes = data?.options.rep_types ?? DEFAULT_REP_TYPES
   const parameters = data?.options.parameters ?? DEFAULT_PARAMETERS
 
+  // The button still runs the report by hand — the first run if nothing has
+  // been changed yet, otherwise a fresh run of the same filters.
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setCommitted({
-      run: true,
-      filters: { ...filters, country: effectiveCountry },
-    })
+    if (run) void refetch()
+    else setStarted(true)
   }
 
   const report = data?.report ?? null
   const hasError = Boolean(error) || Boolean(data?.error)
-  const showSkeleton = isLoading && !data
+  // isLoading alone misses this: placeholderData keeps the previous response
+  // in `data` while a new report is fetched. A background refetch of a report
+  // already on screen just dims it (see below) instead.
+  const reportLoading =
+    run && isFetching && (isPlaceholderData || !report?.rows.length)
 
   return (
     <>
@@ -479,7 +508,14 @@ export function PharmManagerial() {
                 </div>
               </div>
 
-              <div className='flex justify-end'>
+              <div className='flex flex-wrap justify-end gap-2'>
+                <ExportExcelButton
+                  getUrl={() =>
+                    `/sales/api/pharm-managerial/export/?${reportParams(queryFilters)}`
+                  }
+                  fallbackName='apteki_obzor.xlsx'
+                  disabled={!run}
+                />
                 <Button type='submit' disabled={isFetching}>
                   Показать отчёт
                 </Button>
@@ -491,30 +527,33 @@ export function PharmManagerial() {
         <Card>
           <CardHeader className='flex flex-row flex-wrap items-center justify-between gap-3 space-y-0'>
             <CardTitle className='text-base'>Результат</CardTitle>
-            {committed.run &&
-              (report ? (
+            {reportLoading ? (
+              <Skeleton className='h-4 w-24' />
+            ) : (
+              run &&
+              report && (
                 <span className='text-sm text-muted-foreground'>
                   Строк:{' '}
                   <span className='font-medium text-foreground'>
                     {report.total_rows}
                   </span>
                 </span>
-              ) : !hasError && !showSkeleton ? (
-                <Skeleton className='h-4 w-24' />
-              ) : null)}
+              )
+            )}
           </CardHeader>
           <CardContent>
-            {!committed.run ? (
+            {!run ? (
               <div className='py-16 text-center text-muted-foreground italic'>
                 Задайте фильтры и нажмите «Показать отчёт»
+              </div>
+            ) : reportLoading ? (
+              <div className='flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground'>
+                <Loader2 className='size-8 animate-spin' />
+                <span className='text-sm'>Формирование отчёта...</span>
               </div>
             ) : hasError ? (
               <div className='rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive'>
                 {data?.error || 'Ошибка загрузки данных'}
-              </div>
-            ) : showSkeleton ? (
-              <div className='flex items-center justify-center py-16'>
-                <BrandSpinner size={48} label='Загрузка данных' />
               </div>
             ) : report && report.rows.length > 0 ? (
               <div

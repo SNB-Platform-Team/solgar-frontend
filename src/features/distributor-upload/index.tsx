@@ -301,9 +301,10 @@ export function DistributorUpload() {
   })
 
   // Дата с/Дата по can be any days, across any months — the only rule is
-  // that Дата с comes strictly before Дата по. Shared by both Предпросмотр
-  // and Сохранить below. Both are yyyy-MM-dd strings, which `new Date`
-  // parses the same way (as UTC midnight), so comparing them is safe.
+  // that Дата с isn't after Дата по; the same day is fine (stock for a single
+  // day). Shared by both Предпросмотр and Сохранить below. Both are
+  // yyyy-MM-dd strings, which `new Date` parses the same way (as UTC
+  // midnight), so comparing them is safe.
   const validateDateRange = (): string | null => {
     // An empty <input type='date'> parses to an Invalid Date, which would
     // slip past the comparison below — so require both explicitly.
@@ -312,8 +313,8 @@ export function DistributorUpload() {
     }
     const begin = new Date(beginDate)
     const end = new Date(endDate)
-    if (begin >= end) {
-      return 'Ошибка: «Дата с» должна быть раньше «Дата по».'
+    if (begin > end) {
+      return 'Ошибка: «Дата с» не может быть позже «Дата по».'
     }
     return null
   }

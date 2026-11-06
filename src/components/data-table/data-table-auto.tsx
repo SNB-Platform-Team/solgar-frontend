@@ -232,7 +232,11 @@ export function DataTableAuto({
         </DropdownMenu>
       </div>
 
-      <div className='scroll-x-visible overflow-hidden rounded-md border'>
+      {/* No overflow-hidden here: scroll-x-visible hands horizontal scrolling
+          to this div (it turns the Table's own scroll container off), and
+          overflow-hidden — emitted later in the CSS — would override it and
+          clip the right-hand columns instead of scrolling them. */}
+      <div className='scroll-x-visible rounded-md border'>
         <Table className='min-w-max'>
           <TableHeader className='bg-muted/40'>
             {table.getHeaderGroups().map((headerGroup) => (

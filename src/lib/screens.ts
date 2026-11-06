@@ -40,7 +40,8 @@ const SCREEN_BY_SEGMENT: Record<string, string> = {
 /** The screen code a URL path requires, or undefined if it's open to all. */
 export function screenForPath(pathname: string): string | undefined {
   const segment = pathname.split('/')[1] ?? ''
-  if (segment === '') return SCREENS.DASHBOARD
+  // Главная ('/') is open to every signed-in user, whatever their screens.
+  if (segment === '') return undefined
   // /powerbi, /powerbi-obshiy, /powerbi-bounty, ...
   if (segment === 'powerbi' || segment.startsWith('powerbi-'))
     return SCREENS.ANALYTICS

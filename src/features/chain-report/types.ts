@@ -34,6 +34,8 @@ export interface ChainSalesReportResponse {
   options: ChainSalesReportOptions
   report: ChainSalesReportResult | null
   error: string
+  /** Guidance text sent while no report has been produced yet. */
+  message?: string
   f: ChainSalesReportEchoedFilters
 }
 

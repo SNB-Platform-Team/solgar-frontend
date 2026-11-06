@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
@@ -6,8 +6,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Image as ImageIcon,
-  Search as SearchIcon,
+  ListFilter,
   X,
 } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -22,13 +21,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -51,19 +43,18 @@ import { AddressMap } from '@/components/address-map'
 import { BrandSpinner } from '@/components/brand-spinner'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { ServerDataTable } from '@/components/data-table'
+import { ListSearchInput, ServerDataTable } from '@/components/data-table'
 import { DateInput } from '@/components/date-input'
+import { ExportExcelButton } from '@/components/export-excel-button'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
-import {
-  PROMO_CODES,
-  photoSubtypesFor,
-  subtypesFor,
-  type PromoSubtype,
-} from './promo-catalog'
+import { FormSelect } from './form-select'
+import { PharmacyHardware } from './pharmacy-hardware'
+import { subtypesFor } from './promo-catalog'
+import { PromoFields } from './promo-fields'
 import {
   type PharmacyApiResponse,
   type PharmacyBulkSaveResponse,
@@ -80,16 +71,39 @@ import {
 // entry form's own default Компания.
 const DEFAULT_BRAND = 'SOLGAR'
 
-// Radix Select item values can't be an empty string — the entry form's own
-// optional dropdowns below map "not set" to this sentinel.
-const EMPTY = '__EMPTY__'
-
 // Fixed option lists for the form's enum-like fields — no API backs these,
 // the values are constant. FormSelect already offers its own blank "—"
 // item, so none of these repeats "" itself.
 const BRAND_OPTIONS = ['SOLGAR', 'NATURES BOUNTY', 'OBF']
 const ASSORTIMENT_OPTIONS = ['под заказ', 'assortiment']
 const ACTIVENESS_OPTIONS = ['Актив', 'Не Актив', 'Закрыта']
+
+// No list filter picked — the table shows every pharmacy of the brand. Keys
+// are the backend's own query params.
+const EMPTY_LIST_FILTERS = {
+  country: '',
+  area: '',
+  region: '',
+  city: '',
+  group_company: '',
+  subgroup_company: '',
+  pharmacy_category: '',
+  pharmacy_type: '',
+  promo: '',
+  pharmacy_activeness: '',
+  marketing_staff: '',
+}
+
+type ListFilters = typeof EMPTY_LIST_FILTERS
+const LIST_FILTER_KEYS = Object.keys(
+  EMPTY_LIST_FILTERS
+) as (keyof ListFilters)[]
+
+// The list filters live in the URL — '' (nothing picked) is left out of it.
+const listFiltersToSearch = (filters: Partial<ListFilters>) =>
+  Object.fromEntries(
+    Object.entries(filters).map(([k, v]) => [k, v || undefined])
+  ) as Partial<ListFilters>
 
 // Today as yyyy-MM-dd (local time) — Дата активации's default.
 const todayISO = () => {
@@ -99,7 +113,7 @@ const todayISO = () => {
   return `${d.getFullYear()}-${mm}-${dd}`
 }
 
-interface PharmaciesSearch {
+type PharmaciesSearch = Partial<ListFilters> & {
   brand?: string
   page?: number
   search?: string
@@ -186,6 +200,28 @@ const REQUIRED_FIELDS: { key: keyof PharmacyFormValues; label: string }[] = [
   { key: 'marketing_staff', label: 'Мед. представитель' },
 ]
 
+const REQUIRED_KEYS = new Set(REQUIRED_FIELDS.map(({ key }) => key))
+
+/** A form <Label> that gets a red * when `field` is in REQUIRED_FIELDS. */
+function FieldLabel({
+  field,
+  children,
+}: {
+  field: keyof PharmacyFormValues
+  children: ReactNode
+}) {
+  return (
+    <Label>
+      <span>
+        {children}
+        {REQUIRED_KEYS.has(field) && (
+          <span className='text-destructive'> *</span>
+        )}
+      </span>
+    </Label>
+  )
+}
+
 /** "Заполните обязательные поля: ..." for whatever's blank, or null. */
 function missingFieldsError(form: PharmacyFormValues): string | null {
   const missing = REQUIRED_FIELDS.filter(
@@ -218,9 +254,26 @@ export function Pharmacies() {
   // where a locked user could pick another country).
   const countryDisabled = locked || countryLock.isLoading
 
-  // Local input state so typing doesn't trigger a fetch on every keystroke —
-  // only submitting the form (or pressing Enter) commits `search` to the URL.
-  const [searchInput, setSearchInput] = useState(query)
+  // ===== List filters (the Фильтр panel in the table's toolbar) =====
+  // No apply step and no state of its own: `lf` is read from the URL search
+  // params — the one value both the list query's key and its request use —
+  // so every change refetches the table with exactly what's picked. Назад/
+  // Вперёд keep the active filters; any change goes back to page 1.
+  const lf = Object.fromEntries(
+    LIST_FILTER_KEYS.map((k) => [k, search[k] ?? ''])
+  ) as ListFilters
+  const changeLf = (patch: Partial<ListFilters>) =>
+    setSearch({ ...listFiltersToSearch(patch), page: 1 })
+  // A country-locked user's list is always their own country.
+  const lfCountry = locked ? countryLock.userCountry : lf.country
+  // Only where the dropdowns show — the filters themselves stay in the URL.
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  // For the Фильтр button's badge, so applied filters stay visible while the
+  // panel is closed. Every filter in the URL counts (hidden ones included —
+  // they still narrow the list), except a locked user's forced country.
+  const activeFilterCount = LIST_FILTER_KEYS.filter(
+    (k) => lf[k] && !(k === 'country' && locked)
+  ).length
 
   // resetScroll: false — this navigate() only ever updates brand/search/
   // page within the same route, and TanStack Router's default is to scroll
@@ -229,14 +282,25 @@ export function Pharmacies() {
   const setSearch = (next: PharmaciesSearch) =>
     navigate({ search: (prev) => ({ ...prev, ...next }), resetScroll: false })
 
+  // The list's own query params (minus page) — shared by the list query
+  // and «Скачать в Excel», so the export is exactly what's on screen.
+  const listParams = () => {
+    const params = new URLSearchParams({ brand })
+    if (query) params.set('search', query)
+    // Blank filters aren't sent.
+    Object.entries({ ...lf, country: lfCountry }).forEach(([k, v]) => {
+      if (v) params.set(k, v)
+    })
+    return params
+  }
+
   const { data, isLoading, isPlaceholderData, error } =
     useQuery<PharmacyApiResponse>({
-      // No filter params — the backend itself narrows a medrep's list to
-      // their own pharmacies.
-      queryKey: ['pharmacies', brand, page, query],
+      // A medrep's own pharmacies are enforced server-side; these only narrow.
+      queryKey: ['pharmacies', brand, page, query, lf, lfCountry],
       queryFn: async () => {
-        const params = new URLSearchParams({ brand, page: String(page) })
-        if (query) params.set('search', query)
+        const params = listParams()
+        params.set('page', String(page))
         const res = await api.get<PharmacyApiResponse>(
           `/sales/api/pharmacy/?${params}`
         )
@@ -249,19 +313,92 @@ export function Pharmacies() {
     { value: DEFAULT_BRAND, label: DEFAULT_BRAND },
   ]
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setSearch({ page: 1, search: searchInput || undefined })
-  }
+  // «Поиск по таблице» — the server-side search over all records (debounced
+  // in ListSearchInput); part of the URL like the filters.
+  const changeQuery = (value: string) =>
+    setSearch({ page: 1, search: value || undefined })
+
+  // «Сбросить все фильтры» — every filter (hidden ones included) and the
+  // search go; only the brand stays. A locked user's country isn't a URL
+  // param anyway (see lfCountry).
+  const hasAnyFilter =
+    query !== '' ||
+    LIST_FILTER_KEYS.some((k) => lf[k] && !(k === 'country' && locked))
+  const resetAllFilters = () =>
+    navigate({ search: { brand: search.brand, page: 1 }, resetScroll: false })
 
   const changeBrand = (newBrand: string) => {
-    setSearch({ brand: newBrand, page: 1 })
+    // Each brand is its own table with its own option lists, so the filters
+    // picked for the previous one no longer apply.
+    setSearch({
+      ...listFiltersToSearch(EMPTY_LIST_FILTERS),
+      brand: newBrand,
+      page: 1,
+    })
   }
+
+  // The list filter's own option lists — separate from the entry form's,
+  // keyed off the list's brand and filters. These are the values actually in
+  // the table, which is what its filters have to match (Промо included, where
+  // the form offers the catalog instead).
+  const { data: lfOptions } = useQuery<PharmacyFilterOptions>({
+    queryKey: ['pharmacy-listfilter-options', brand, lfCountry],
+    queryFn: async () => {
+      const params = new URLSearchParams({ brand })
+      if (lfCountry) params.set('country', lfCountry)
+      const res = await api.get<PharmacyFilterOptions>(
+        `/sales/api/pharmacy/filter-options/?${params}`
+      )
+      return res.data
+    },
+  })
+  const lfCascade = (
+    level: PharmacyCascadeOptions['level'],
+    extra: Record<string, string>,
+    enabled: boolean
+  ) => ({
+    queryKey: ['pharmacy-listfilter-cascade', brand, level, extra],
+    queryFn: async () => {
+      const params = new URLSearchParams({ brand, level, ...extra })
+      const res = await api.get<PharmacyCascadeOptions>(
+        `/sales/api/pharmacy/filter-options/?${params}`
+      )
+      return res.data
+    },
+    enabled,
+  })
+  const { data: lfAreaOptions } = useQuery(
+    lfCascade('area', { country: lfCountry }, Boolean(lfCountry))
+  )
+  const { data: lfRegionOptions } = useQuery(
+    lfCascade(
+      'region',
+      { country: lfCountry, area: lf.area },
+      Boolean(lfCountry && lf.area)
+    )
+  )
+  const { data: lfCityOptions } = useQuery(
+    lfCascade(
+      'city',
+      { country: lfCountry, area: lf.area, region: lf.region },
+      Boolean(lfCountry && lf.area && lf.region)
+    )
+  )
+  const { data: lfSubchainOptions } = useQuery(
+    lfCascade(
+      'subchain',
+      { country: lfCountry, group_company: lf.group_company },
+      Boolean(lf.group_company)
+    )
+  )
 
   // ===== Карточка аптеки (Pharmacy Entry&Update) =====
 
   const [form, setForm] = useState<PharmacyFormValues>(DEFAULT_PHARMACY_FORM)
   const [editingId, setEditingId] = useState<string | number | null>(null)
+  // The brand the open record was loaded under — not form.brand or the
+  // list's brand, either of which can change while the card stays open.
+  const [editingBrand, setEditingBrand] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [formNotice, setFormNotice] = useState<string | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -528,6 +665,7 @@ export function Pharmacies() {
         sub_administrative_area_name: data.sub_administrative_area_name ?? '',
       })
       setEditingId(data.id)
+      setEditingBrand(data._brand)
       setFormError(null)
       setFormNotice(null)
     },
@@ -556,8 +694,10 @@ export function Pharmacies() {
         point_x: data.point_x != null ? String(data.point_x) : prev.point_x,
         point_y: data.point_y != null ? String(data.point_y) : prev.point_y,
         full_address: data.full_address ?? prev.full_address,
-        // Адрес аптеки is prefilled with the found address too — still
-        // editable by hand afterwards.
+        // Адрес аптеки has no input of its own any more — it just follows
+        // the found address, so the list's PHARMACY ADDRESS column stays in
+        // step. Untouched (= the loaded value) unless an address is found;
+        // a blank one is filled from full_address server-side on save.
         pharmacy_address: data.full_address ?? prev.pharmacy_address,
         street: data.street ?? prev.street,
         homenumber: data.home_number ?? prev.homenumber,
@@ -693,16 +833,10 @@ export function Pharmacies() {
     geocodeMutation.mutate()
   }
 
-  // Промо → Подтип cascade (see promo-catalog.ts) and its photo gallery,
-  // which only some Промо (СТОЙКИ/КОРНЕР) have.
-  const [promoGalleryOpen, setPromoGalleryOpen] = useState(false)
-  const promoSubtypes = subtypesFor(form.promo)
-  const promoPhotoSubtypes = photoSubtypesFor(form.promo)
-  const selectedPromoSubtype: PromoSubtype | undefined = promoSubtypes.find(
-    (s) => s.name === form.promo_subtype
-  )
-
   const isEditing = editingId !== null
+  // «ID аптеки» — the legacy pharmacy_id from the detail response (not the
+  // admin-only corner-log), so every user who opens the card sees it.
+  const detailPharmacyId = detailMutation.data?.pharmacy_id || '—'
   const formBusy =
     detailMutation.isPending ||
     geocodeMutation.isPending ||
@@ -734,6 +868,14 @@ export function Pharmacies() {
                 ? `Редактирование записи (ID ${editingId})`
                 : 'Новая запись — заполните форму и нажмите «Добавить аптека»'}
             </CardDescription>
+            {isEditing && (
+              <CardDescription className='text-xs'>
+                ID аптеки:{' '}
+                <span className='font-medium text-foreground'>
+                  {detailPharmacyId}
+                </span>
+              </CardDescription>
+            )}
           </CardHeader>
           <CardContent>
             <form onSubmit={handleAdd} className='space-y-6'>
@@ -753,7 +895,7 @@ export function Pharmacies() {
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Страна</Label>
+                      <FieldLabel field='country'>Страна</FieldLabel>
                       {isEditing ? (
                         <Input
                           value={formCountry}
@@ -775,7 +917,7 @@ export function Pharmacies() {
                       )}
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Область</Label>
+                      <FieldLabel field='area'>Область</FieldLabel>
                       {isEditing ? (
                         <Input
                           value={form.area}
@@ -798,7 +940,7 @@ export function Pharmacies() {
                       )}
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Регион</Label>
+                      <FieldLabel field='region'>Регион</FieldLabel>
                       {isEditing ? (
                         <Input
                           value={form.region}
@@ -821,7 +963,7 @@ export function Pharmacies() {
                       )}
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Город</Label>
+                      <FieldLabel field='city'>Город</FieldLabel>
                       {isEditing ? (
                         <Input
                           value={form.city}
@@ -871,7 +1013,9 @@ export function Pharmacies() {
                   </h3>
                   <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
                     <div className='space-y-1.5'>
-                      <Label>Группа компаний</Label>
+                      <FieldLabel field='group_company'>
+                        Группа компаний
+                      </FieldLabel>
                       <FormSelect
                         value={form.group_company}
                         options={formFilterOptions?.chains ?? []}
@@ -885,7 +1029,9 @@ export function Pharmacies() {
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Подгруппа</Label>
+                      <FieldLabel field='subgroup_company'>
+                        Подгруппа
+                      </FieldLabel>
                       {isEditing ? (
                         <Input
                           value={form.subgroup_company}
@@ -908,7 +1054,9 @@ export function Pharmacies() {
                       )}
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Мед. представитель</Label>
+                      <FieldLabel field='marketing_staff'>
+                        Мед. представитель
+                      </FieldLabel>
                       <FormSelect
                         value={formMarketingStaff}
                         options={
@@ -921,7 +1069,9 @@ export function Pharmacies() {
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Категория</Label>
+                      <FieldLabel field='pharmacy_category'>
+                        Категория
+                      </FieldLabel>
                       <FormSelect
                         value={form.pharmacy_category}
                         options={formFilterOptions?.categories ?? []}
@@ -947,7 +1097,9 @@ export function Pharmacies() {
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Активность</Label>
+                      <FieldLabel field='pharmacy_activeness'>
+                        Активность
+                      </FieldLabel>
                       <FormSelect
                         value={form.pharmacy_activeness}
                         options={ACTIVENESS_OPTIONS}
@@ -955,63 +1107,27 @@ export function Pharmacies() {
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>Тип аптеки</Label>
+                      <FieldLabel field='pharmacy_type'>Тип аптеки</FieldLabel>
                       <FormSelect
                         value={form.pharmacy_type}
                         options={formFilterOptions?.types ?? []}
                         onChange={(v) => setField('pharmacy_type', v)}
                       />
                     </div>
+                    <PromoFields
+                      promo={form.promo}
+                      subtype={form.promo_subtype}
+                      onPromoChange={(v) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          promo: v,
+                          promo_subtype: '',
+                        }))
+                      }
+                      onSubtypeChange={(v) => setField('promo_subtype', v)}
+                    />
                     <div className='space-y-1.5'>
-                      <Label>Промо</Label>
-                      <FormSelect
-                        value={form.promo}
-                        options={PROMO_CODES}
-                        onChange={(v) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            promo: v,
-                            promo_subtype: '',
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className='space-y-1.5'>
-                      <Label>Подтип</Label>
-                      <div className='flex gap-2'>
-                        <div className='min-w-0 flex-1'>
-                          <FormSelect
-                            value={form.promo_subtype}
-                            options={promoSubtypes.map((s) => s.name)}
-                            disabled={!form.promo}
-                            placeholder={
-                              form.promo
-                                ? 'Не выбрано'
-                                : 'Сначала выберите промо'
-                            }
-                            onChange={(v) => setField('promo_subtype', v)}
-                          />
-                        </div>
-                        {promoPhotoSubtypes.length > 0 && (
-                          <Button
-                            type='button'
-                            variant='outline'
-                            onClick={() => setPromoGalleryOpen(true)}
-                          >
-                            <ImageIcon className='size-4' />
-                            Выбрать фото
-                          </Button>
-                        )}
-                      </div>
-                      {selectedPromoSubtype && (
-                        <p className='text-xs text-muted-foreground'>
-                          Бренд: {selectedPromoSubtype.brand || '—'} · Габариты:{' '}
-                          {selectedPromoSubtype.size || '—'}
-                        </p>
-                      )}
-                    </div>
-                    <div className='space-y-1.5'>
-                      <Label>Статус</Label>
+                      <FieldLabel field='status'>Статус</FieldLabel>
                       <FormSelect
                         value={form.status}
                         options={formFilterOptions?.statuses ?? ['STANDARD']}
@@ -1133,15 +1249,6 @@ export function Pharmacies() {
                         onChange={(e) => setField('comments', e.target.value)}
                       />
                     </div>
-                    <div className='space-y-1.5 lg:col-span-3'>
-                      <Label>Адрес аптеки</Label>
-                      <Input
-                        value={form.pharmacy_address}
-                        onChange={(e) =>
-                          setField('pharmacy_address', e.target.value)
-                        }
-                      />
-                    </div>
                   </div>
                 </div>
 
@@ -1157,7 +1264,7 @@ export function Pharmacies() {
                         onChange={(e) =>
                           setField('full_address', e.target.value)
                         }
-                        placeholder='Введите адрес для поиска'
+                        placeholder='Введите адрес аптеки и нажмите «Найти адрес»'
                         className='flex-1'
                       />
                       <Button
@@ -1387,49 +1494,6 @@ export function Pharmacies() {
           </Card>
         )}
 
-        <Dialog open={promoGalleryOpen} onOpenChange={setPromoGalleryOpen}>
-          <DialogContent className='sm:max-w-4xl'>
-            <DialogHeader>
-              <DialogTitle>Выбрать фото — {form.promo}</DialogTitle>
-              <DialogDescription>
-                Нажмите на фото, чтобы выбрать подтип
-              </DialogDescription>
-            </DialogHeader>
-            {/* Scrolls on its own so a long gallery never overflows the
-                dialog; photos use object-contain at a fixed height so
-                nothing (shelf labels etc.) gets cropped. */}
-            <div className='max-h-[70vh] overflow-y-auto pe-1'>
-              <div className='grid grid-cols-2 gap-4 lg:grid-cols-3'>
-                {promoPhotoSubtypes.map((s) => (
-                  <button
-                    key={s.name}
-                    type='button'
-                    onClick={() => {
-                      setField('promo_subtype', s.name)
-                      setPromoGalleryOpen(false)
-                    }}
-                    className={
-                      'overflow-hidden rounded-md border text-start transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none' +
-                      (form.promo_subtype === s.name
-                        ? ' border-primary ring-2 ring-primary'
-                        : '')
-                    }
-                  >
-                    <img
-                      src={s.photo}
-                      alt={s.name}
-                      className='h-56 w-full bg-muted object-contain p-2'
-                    />
-                    <p className='mt-2 px-2 pb-2 text-center text-sm font-medium'>
-                      {s.name}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
         <ConfirmDialog
           open={deleteConfirmOpen}
           onOpenChange={setDeleteConfirmOpen}
@@ -1448,6 +1512,22 @@ export function Pharmacies() {
           cancelBtnText='Отмена'
         />
 
+        {/* Follows the record opened from the list below: shown once a row
+            is picked, gone again when the form is cleared. Temporarily
+            staff/superuser only — not ready for everyone yet. */}
+        {editingId !== null &&
+          (meQuery.data?.is_superuser || meQuery.data?.is_staff) && (
+            <PharmacyHardware
+              key={`${editingBrand}-${editingId}`}
+              brand={editingBrand}
+              pharmacyId={editingId}
+              title={
+                [form.group_company, form.city].filter(Boolean).join(', ') ||
+                `ID ${editingId}`
+              }
+            />
+          )}
+
         <Card>
           <CardHeader className='flex flex-row flex-wrap items-center justify-between gap-3 space-y-0'>
             <CardDescription>
@@ -1465,6 +1545,33 @@ export function Pharmacies() {
               )}
             </CardDescription>
             <div className='flex flex-wrap items-center gap-2'>
+              <Button
+                type='button'
+                variant={filtersOpen ? 'secondary' : 'outline'}
+                aria-expanded={filtersOpen}
+                onClick={() => setFiltersOpen((open) => !open)}
+              >
+                <ListFilter className='size-4' />
+                Фильтр
+                {activeFilterCount > 0 && (
+                  <span className='flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground'>
+                    {activeFilterCount}
+                  </span>
+                )}
+              </Button>
+              <Button
+                type='button'
+                variant='ghost'
+                disabled={!hasAnyFilter}
+                onClick={resetAllFilters}
+              >
+                <X className='size-4' />
+                Сбросить все фильтры
+              </Button>
+              <ExportExcelButton
+                getUrl={() => `/sales/api/pharmacy/export/?${listParams()}`}
+                fallbackName='apteki.xlsx'
+              />
               <Select value={brand} onValueChange={changeBrand}>
                 <SelectTrigger className='w-44'>
                   <SelectValue placeholder='Компания' />
@@ -1477,24 +1584,101 @@ export function Pharmacies() {
                   ))}
                 </SelectContent>
               </Select>
-              <form onSubmit={handleSearch} className='flex items-center gap-2'>
-                <div className='relative'>
-                  <SearchIcon className='absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground' />
-                  <Input
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    placeholder='Поиск: название, город или адрес...'
-                    className='w-64 ps-8'
-                  />
-                </div>
-                <Button type='submit' variant='outline'>
-                  Поиск
-                </Button>
-              </form>
             </div>
+            {/* Behind the Фильтр button. Each change re-queries the table
+                below through the URL, as before. */}
+            {filtersOpen && (
+              <div className='basis-full space-y-4 rounded-md border bg-muted/30 p-4'>
+                <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+                  <div className='space-y-1.5'>
+                    <Label>Страна</Label>
+                    <FormSelect
+                      value={lfCountry}
+                      options={
+                        locked
+                          ? [countryLock.userCountry]
+                          : (lfOptions?.countries ?? [])
+                      }
+                      disabled={countryDisabled}
+                      onChange={(v) =>
+                        changeLf({
+                          country: v,
+                          area: '',
+                          region: '',
+                          city: '',
+                          group_company: '',
+                          subgroup_company: '',
+                        })
+                      }
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label>Область</Label>
+                    <FormSelect
+                      value={lf.area}
+                      options={lfAreaOptions?.options ?? []}
+                      disabled={!lfCountry}
+                      onChange={(v) =>
+                        changeLf({ area: v, region: '', city: '' })
+                      }
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label>Регион</Label>
+                    <FormSelect
+                      value={lf.region}
+                      options={lfRegionOptions?.options ?? []}
+                      disabled={!lf.area}
+                      onChange={(v) => changeLf({ region: v, city: '' })}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label>Город</Label>
+                    <FormSelect
+                      value={lf.city}
+                      options={lfCityOptions?.options ?? []}
+                      disabled={!lf.region}
+                      onChange={(v) => changeLf({ city: v })}
+                    />
+                  </div>
+                  {!medrepLocked && (
+                    <div className='space-y-1.5'>
+                      <Label>Мед. представитель</Label>
+                      <FormSelect
+                        value={lf.marketing_staff}
+                        options={lfOptions?.marketing_staff ?? []}
+                        onChange={(v) => changeLf({ marketing_staff: v })}
+                      />
+                    </div>
+                  )}
+                  <div className='space-y-1.5'>
+                    <Label>Группа компаний</Label>
+                    <FormSelect
+                      value={lf.group_company}
+                      options={lfOptions?.chains ?? []}
+                      onChange={(v) =>
+                        changeLf({ group_company: v, subgroup_company: '' })
+                      }
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label>Подгруппа</Label>
+                    <FormSelect
+                      value={lf.subgroup_company}
+                      options={lfSubchainOptions?.options ?? []}
+                      disabled={!lf.group_company}
+                      onChange={(v) => changeLf({ subgroup_company: v })}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </CardHeader>
 
           <CardContent>
+            <div className='mb-3'>
+              <ListSearchInput value={query} onChange={changeQuery} />
+            </div>
             {error ? (
               <div className='rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive'>
                 Ошибка загрузки данных
@@ -1547,63 +1731,5 @@ export function Pharmacies() {
         </Card>
       </Main>
     </>
-  )
-}
-
-// A plain "<Select/>" for the entry form — no "Все" item (this isn't a
-// filter, an empty value here just means the field wasn't filled in).
-function FormSelect({
-  value,
-  options,
-  onChange,
-  disabled,
-  placeholder = 'Не выбрано',
-}: {
-  value: string
-  options: string[]
-  onChange: (value: string) => void
-  disabled?: boolean
-  placeholder?: string
-}) {
-  // The current value is always shown, whether or not it's in `options`:
-  // "Найти адрес" can set values the cascade lists don't know, and clicking
-  // a table row sets Город/Регион/Область before their lists return. So:
-  //  1. The value is always one of the items (added up front unless that
-  //     exact string is already there), so Radix can select it.
-  //  2. SelectValue is given the label directly. Otherwise Radix only fills
-  //     the trigger once the matching item has rendered, which left the
-  //     field blank on the first row click when the list arrived late.
-  // Blank and duplicate options are dropped — Radix rejects an empty item
-  // value, and a repeated one would duplicate its React key.
-  const trimmed = (value ?? '').trim()
-  const cleanOptions = Array.from(
-    new Set(options.filter((o) => (o ?? '').trim() !== ''))
-  )
-  const allOptions =
-    trimmed !== '' && !cleanOptions.includes(value)
-      ? [value, ...cleanOptions]
-      : cleanOptions
-  const selectValue = trimmed === '' ? EMPTY : value
-
-  return (
-    <Select
-      value={selectValue}
-      onValueChange={(v) => onChange(v === EMPTY ? '' : v)}
-      disabled={disabled}
-    >
-      <SelectTrigger className='w-full'>
-        <SelectValue placeholder={placeholder}>
-          {selectValue === EMPTY ? '—' : value}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={EMPTY}>—</SelectItem>
-        {allOptions.map((o) => (
-          <SelectItem key={o} value={o}>
-            {o}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   )
 }

@@ -2,12 +2,10 @@ import { useMemo, useState } from 'react'
 import {
   type Column,
   type ColumnDef,
-  type FilterFn,
   type SortingFn,
   type SortingState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
@@ -16,13 +14,11 @@ import {
   ArrowUp,
   ArrowUpDown,
   PanelRightOpen,
-  Search as SearchIcon,
   X,
 } from 'lucide-react'
 import { findAddressColumns, isAddressMissing } from '@/lib/address-columns'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Sheet,
   SheetContent,
@@ -54,17 +50,6 @@ const EMPTY_ROWS: ServerRow[] = []
 
 const DETAILS_COLUMN_ID = '__details__'
 
-// Case-insensitive substring match over every column of the row — TanStack's
-// built-in includesString only considers columns whose *first row* value is
-// a string/number, which silently skips any column that starts with a null.
-const matchesSearch: FilterFn<ServerRow> = (row, columnId, filterValue) => {
-  const value = row.getValue<ServerCell>(columnId)
-  if (value == null) return false
-  return String(value)
-    .toLowerCase()
-    .includes(String(filterValue).trim().toLowerCase())
-}
-
 // Numbers numerically, everything else as natural-order text, blanks last
 // regardless of direction — the backend sends mixed number/string/null
 // cells per column, which TanStack's 'auto' sortingFn (picked from the
@@ -94,9 +79,9 @@ interface ServerDataTableProps {
 }
 
 /**
- * The Pharmacy/Doctor list table: the backend still owns pagination and
- * the real filters, so this only adds what can be done over the rows of
- * the page already loaded — a quick search box, per-column sorting and a
+ * The Pharmacy/Doctor list table: the backend owns pagination, search and
+ * the filters (see ListSearchInput), so this only adds what can be done over
+ * the rows of the page already loaded — per-column sorting and a
  * separate "Детали записи" button that opens every field of a row in a
  * read-only side panel. Clicking the row itself is left to the caller (it
  * fills the entry form), and the missing-address/selected-row highlights
@@ -111,7 +96,6 @@ export function ServerDataTable({
   detailsTitle = 'Детали записи',
 }: ServerDataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
-  const [globalFilter, setGlobalFilter] = useState('')
   const [detailRow, setDetailRow] = useState<ServerRow | null>(null)
 
   const addressCols = useMemo(() => findAddressColumns(columns), [columns])
@@ -121,7 +105,6 @@ export function ServerDataTable({
       {
         id: DETAILS_COLUMN_ID,
         enableSorting: false,
-        enableGlobalFilter: false,
         header: () => <span className='sr-only'>Детали записи</span>,
         cell: ({ row }) => (
           <Tooltip>
@@ -154,7 +137,6 @@ export function ServerDataTable({
         ),
         cell: ({ getValue }) => (getValue() as ServerCell) ?? '',
         sortingFn: compareCells,
-        filterFn: matchesSearch,
       })),
     ],
     [columns]
@@ -164,52 +146,27 @@ export function ServerDataTable({
   const table = useReactTable({
     data: rows ?? EMPTY_ROWS,
     columns: tableColumns,
-    state: { sorting, globalFilter },
+    state: { sorting },
     onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
-    globalFilterFn: matchesSearch,
-    getColumnCanGlobalFilter: (column) => column.id !== DETAILS_COLUMN_ID,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
   })
 
   const visibleRows = table.getRowModel().rows
-  const totalOnPage = rows?.length ?? 0
-  const isFiltered = globalFilter.trim() !== ''
 
   return (
     <div className='space-y-3'>
-      <div className='flex flex-wrap items-center gap-2'>
-        <div className='relative w-full max-w-sm'>
-          <SearchIcon className='absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground' />
-          <Input
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder='Поиск по таблице...'
-            className='h-8 ps-8'
-          />
-        </div>
-        {(isFiltered || sorting.length > 0) && (
-          <Button
-            variant='ghost'
-            size='sm'
-            className='h-8 px-2 lg:px-3'
-            onClick={() => {
-              setGlobalFilter('')
-              setSorting([])
-            }}
-          >
-            Сбросить
-            <X className='ms-1 size-4' />
-          </Button>
-        )}
-        <span className='text-xs text-muted-foreground'>
-          {isFiltered
-            ? `Найдено ${visibleRows.length} из ${totalOnPage} на этой странице`
-            : 'Поиск и сортировка — по текущей странице'}
-        </span>
-      </div>
+      {sorting.length > 0 && (
+        <Button
+          variant='ghost'
+          size='sm'
+          className='h-8 px-2 lg:px-3'
+          onClick={() => setSorting([])}
+        >
+          Сбросить сортировку
+          <X className='ms-1 size-4' />
+        </Button>
+      )}
 
       <div
         className={cn(
@@ -291,9 +248,7 @@ export function ServerDataTable({
                   colSpan={tableColumns.length}
                   className='h-24 text-center text-muted-foreground italic'
                 >
-                  {isFiltered
-                    ? 'Ничего не найдено на этой странице'
-                    : 'Нет данных'}
+                  Нет данных
                 </TableCell>
               </TableRow>
             )}

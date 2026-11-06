@@ -45,7 +45,7 @@ export const sidebarData: SidebarData = {
         {
           title: 'Главная',
           url: '/',
-          screen: SCREENS.DASHBOARD,
+          // No screen code — Главная is shown to every signed-in user.
           icon: LayoutDashboard,
         },
         {

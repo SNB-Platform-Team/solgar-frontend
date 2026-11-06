@@ -34,6 +34,8 @@ export interface DistributorReportResponse {
   options: DistributorReportOptions
   report: DistributorReportResult | null
   error: string
+  /** Guidance text sent while no report has been produced yet. */
+  message?: string
   f: DistributorReportEchoedFilters
 }
 

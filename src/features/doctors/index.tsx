@@ -6,7 +6,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Search as SearchIcon,
+  ListFilter,
   X,
 } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -43,8 +43,9 @@ import { AddressMap } from '@/components/address-map'
 import { BrandSpinner } from '@/components/brand-spinner'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { ServerDataTable } from '@/components/data-table'
+import { ListSearchInput, ServerDataTable } from '@/components/data-table'
 import { DateInput } from '@/components/date-input'
+import { ExportExcelButton } from '@/components/export-excel-button'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -83,6 +84,45 @@ const CLINIC_STATUS_OPTIONS = ['GOLD', 'PLATINUM', 'SILVER']
 const BRAND_OPTIONS = ['SOLGAR', 'NATURES BOUNTY']
 const DEFAULT_FORM_BRAND = 'SOLGAR'
 
+// No list filter picked — the table shows every doctor of the brand.
+const EMPTY_LIST_FILTERS = {
+  country: '',
+  /** Округ */
+  area: '',
+  region: '',
+  city: '',
+  specialty: '',
+  unified_specialty: '',
+  category: '',
+  activeness: '',
+  clinic_status: '',
+  medrep: '',
+}
+
+type ListFilters = typeof EMPTY_LIST_FILTERS
+const LIST_FILTER_KEYS = Object.keys(
+  EMPTY_LIST_FILTERS
+) as (keyof ListFilters)[]
+
+// The list filters live in the URL — '' (nothing picked) is left out of it.
+const listFiltersToSearch = (filters: Partial<ListFilters>) =>
+  Object.fromEntries(
+    Object.entries(filters).map(([k, v]) => [k, v || undefined])
+  ) as Partial<ListFilters>
+
+// The filters the Фильтр panel shows — and so the only ones its badge counts.
+// The rest of ListFilters still work from the URL (old links), but have no
+// control any more; Сбросить clears them along with these.
+const PANEL_FILTER_KEYS: (keyof ListFilters)[] = [
+  'country',
+  'area',
+  'region',
+  'city',
+  'medrep',
+  'unified_specialty',
+  'specialty',
+]
+
 // Today as yyyy-MM-dd (local time) — Дата активации's default.
 const todayISO = () => {
   const d = new Date()
@@ -91,7 +131,7 @@ const todayISO = () => {
   return `${d.getFullYear()}-${mm}-${dd}`
 }
 
-interface DoctorsSearch {
+type DoctorsSearch = Partial<ListFilters> & {
   brand?: string
   page?: number
   search?: string
@@ -167,8 +207,6 @@ const REQUIRED_FIELDS: { key: keyof DoctorFormValues; label: string }[] = [
   { key: 'doctor_date', label: 'Дата активации' },
   { key: 'clinic_status', label: 'Категория' },
   { key: 'clinic_name', label: 'Название' },
-  { key: 'doctor_tel', label: 'Доктор тел' },
-  { key: 'doctor_email', label: 'Эл. адрес' },
   { key: 'full_address', label: 'Полный адрес' },
 ]
 
@@ -204,9 +242,33 @@ export function Doctors() {
   // where a locked user could pick another country).
   const countryDisabled = locked || countryLock.isLoading
 
-  // Local input state so typing doesn't trigger a fetch on every keystroke —
-  // only submitting the form (or pressing Enter) commits `search` to the URL.
-  const [searchInput, setSearchInput] = useState(query)
+  // ===== List filters (the Фильтр panel in the table's toolbar) =====
+  // No apply step and no state of its own: `lf` is read from the URL search
+  // params — the one value both the list query's key and its request use —
+  // so every change refetches the table with exactly what's picked. Назад/
+  // Вперёд keep the active filters; any change goes back to page 1.
+  const lf = Object.fromEntries(
+    LIST_FILTER_KEYS.map((k) => [k, search[k] ?? ''])
+  ) as ListFilters
+  const changeLf = (patch: Partial<ListFilters>) =>
+    setSearch({ ...listFiltersToSearch(patch), page: 1 })
+  const setLfField = (key: keyof ListFilters, value: string) =>
+    changeLf({ [key]: value })
+  // Страна → Область → Регион → Город: a change clears whatever depends on it.
+  const setLfCountry = (value: string) =>
+    changeLf({ country: value, area: '', region: '', city: '' })
+  const setLfDistrict = (value: string) =>
+    changeLf({ area: value, region: '', city: '' })
+  const setLfRegion = (value: string) => changeLf({ region: value, city: '' })
+  // A country-locked user's list is always their own country.
+  const lfCountry = locked ? countryLock.userCountry : lf.country
+  // Only where the dropdowns show — the filters themselves stay in the URL.
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  // For the Фильтр button's badge, so applied filters stay visible while the
+  // panel is closed. A locked user's forced country doesn't count.
+  const activeFilterCount = PANEL_FILTER_KEYS.filter(
+    (k) => lf[k] && !(k === 'country' && locked)
+  ).length
 
   // resetScroll: false — this navigate() only ever updates brand/search/
   // page within the same route, and TanStack Router's default is to scroll
@@ -215,14 +277,25 @@ export function Doctors() {
   const setSearch = (next: DoctorsSearch) =>
     navigate({ search: (prev) => ({ ...prev, ...next }), resetScroll: false })
 
+  // The list's own query params (minus page) — shared by the list query
+  // and «Скачать в Excel», so the export is exactly what's on screen.
+  const listParams = () => {
+    const params = new URLSearchParams({ brand })
+    if (query) params.set('search', query)
+    // Blank filters aren't sent.
+    Object.entries({ ...lf, country: lfCountry }).forEach(([k, v]) => {
+      if (v) params.set(k, v)
+    })
+    return params
+  }
+
   const { data, isLoading, isPlaceholderData, error } =
     useQuery<DoctorApiResponse>({
-      // No filter params — the backend itself narrows a medrep's list to
-      // their own doctors.
-      queryKey: ['doctors', brand, page, query],
+      // A medrep's own doctors are enforced server-side; these only narrow.
+      queryKey: ['doctors', brand, page, query, lf, lfCountry],
       queryFn: async () => {
-        const params = new URLSearchParams({ brand, page: String(page) })
-        if (query) params.set('search', query)
+        const params = listParams()
+        params.set('page', String(page))
         const res = await api.get<DoctorApiResponse>(
           `/sales/api/doctor/?${params}`
         )
@@ -244,12 +317,55 @@ export function Doctors() {
     },
   })
 
+  // The list filter's own cascade lists, separate from the entry form's.
+  const lfCascade = (
+    level: DoctorCascadeOptions['level'],
+    extra: Record<string, string>,
+    enabled: boolean
+  ) => ({
+    queryKey: ['doctor-listfilter-cascade', level, extra],
+    queryFn: async () => {
+      const params = new URLSearchParams({ level, ...extra })
+      const res = await api.get<DoctorCascadeOptions>(
+        `/sales/api/doctor/filter-options/?${params}`
+      )
+      return res.data
+    },
+    enabled,
+  })
+  const { data: lfDistrictOptions } = useQuery(
+    lfCascade('area', { country: lfCountry }, Boolean(lfCountry))
+  )
+  const { data: lfRegionOptions } = useQuery(
+    lfCascade(
+      'region',
+      { country: lfCountry, area: lf.area },
+      Boolean(lfCountry && lf.area)
+    )
+  )
+  const { data: lfCityOptions } = useQuery(
+    lfCascade(
+      'city',
+      { country: lfCountry, area: lf.area, region: lf.region },
+      Boolean(lfCountry && lf.area && lf.region)
+    )
+  )
+
   const brands = data?.brands ?? [{ value: DEFAULT_BRAND, label: 'Все' }]
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setSearch({ page: 1, search: searchInput || undefined })
-  }
+  // «Поиск по таблице» — the server-side search over all records (debounced
+  // in ListSearchInput); part of the URL like the filters.
+  const changeQuery = (value: string) =>
+    setSearch({ page: 1, search: value || undefined })
+
+  // «Сбросить все фильтры» — every filter (hidden ones included) and the
+  // search go; only the brand stays. A locked user's country isn't a URL
+  // param anyway (see lfCountry).
+  const hasAnyFilter =
+    query !== '' ||
+    LIST_FILTER_KEYS.some((k) => lf[k] && !(k === 'country' && locked))
+  const resetAllFilters = () =>
+    navigate({ search: { brand: search.brand, page: 1 }, resetScroll: false })
 
   const changeBrand = (newBrand: string) => {
     setSearch({
@@ -457,8 +573,10 @@ export function Doctors() {
         point_x: data.point_x != null ? String(data.point_x) : prev.point_x,
         point_y: data.point_y != null ? String(data.point_y) : prev.point_y,
         full_address: data.full_address || prev.full_address,
-        // Адрес клиники is prefilled with the found address too — still
-        // editable by hand afterwards.
+        // Адрес клиники has no input of its own any more — it just follows
+        // the found address, so the list's Clinic Address column stays in
+        // step. Untouched (= the loaded value) unless an address is found;
+        // a blank one is filled from full_address server-side on save.
         clinic_address: data.full_address ?? prev.clinic_address,
         street: data.street ?? prev.street,
         homenumber: data.home_number ?? prev.homenumber,
@@ -845,9 +963,7 @@ export function Doctors() {
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>
-                        Доктор тел <span className='text-destructive'>*</span>
-                      </Label>
+                      <Label>Доктор тел</Label>
                       <Input
                         type='tel'
                         value={form.doctor_tel}
@@ -855,9 +971,7 @@ export function Doctors() {
                       />
                     </div>
                     <div className='space-y-1.5'>
-                      <Label>
-                        Эл. адрес <span className='text-destructive'>*</span>
-                      </Label>
+                      <Label>Эл. адрес</Label>
                       <Input
                         type='email'
                         value={form.doctor_email}
@@ -920,15 +1034,6 @@ export function Doctors() {
                         }
                       />
                     </div>
-                    <div className='space-y-1.5 lg:col-span-3'>
-                      <Label>Адрес клиники</Label>
-                      <Input
-                        value={form.clinic_address}
-                        onChange={(e) =>
-                          setField('clinic_address', e.target.value)
-                        }
-                      />
-                    </div>
                   </div>
                 </div>
 
@@ -946,7 +1051,7 @@ export function Doctors() {
                         onChange={(e) =>
                           setField('full_address', e.target.value)
                         }
-                        placeholder='Введите адрес для поиска'
+                        placeholder='Введите адрес клиники и нажмите «Найти адрес»'
                         className='flex-1'
                       />
                       <Button
@@ -1220,6 +1325,33 @@ export function Doctors() {
               )}
             </CardDescription>
             <div className='flex flex-wrap items-center gap-2'>
+              <Button
+                type='button'
+                variant={filtersOpen ? 'secondary' : 'outline'}
+                aria-expanded={filtersOpen}
+                onClick={() => setFiltersOpen((open) => !open)}
+              >
+                <ListFilter className='size-4' />
+                Фильтр
+                {activeFilterCount > 0 && (
+                  <span className='flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground'>
+                    {activeFilterCount}
+                  </span>
+                )}
+              </Button>
+              <Button
+                type='button'
+                variant='ghost'
+                disabled={!hasAnyFilter}
+                onClick={resetAllFilters}
+              >
+                <X className='size-4' />
+                Сбросить все фильтры
+              </Button>
+              <ExportExcelButton
+                getUrl={() => `/sales/api/doctor/export/?${listParams()}`}
+                fallbackName='vrachi.xlsx'
+              />
               <Select
                 value={brand === '' ? ALL_BRAND : brand}
                 onValueChange={changeBrand}
@@ -1238,24 +1370,97 @@ export function Doctors() {
                   ))}
                 </SelectContent>
               </Select>
-              <form onSubmit={handleSearch} className='flex items-center gap-2'>
-                <div className='relative'>
-                  <SearchIcon className='absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground' />
-                  <Input
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    placeholder='Поиск: ФИО, город или клиника'
-                    className='w-64 ps-8'
-                  />
-                </div>
-                <Button type='submit' variant='outline'>
-                  Поиск
-                </Button>
-              </form>
             </div>
+            {/* Behind the Фильтр button. Each change re-queries the table
+                below through the URL. */}
+            {filtersOpen && (
+              <div className='basis-full space-y-4 rounded-md border bg-muted/30 p-4'>
+                <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+                  <div className='space-y-1.5'>
+                    <Label>Страна</Label>
+                    <FormSelect
+                      value={lfCountry}
+                      options={
+                        locked
+                          ? [countryLock.userCountry]
+                          : (filterOptions?.countries ?? [])
+                      }
+                      disabled={countryDisabled}
+                      onChange={setLfCountry}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label>Область</Label>
+                    <FormSelect
+                      value={lf.area}
+                      options={lfDistrictOptions?.options ?? []}
+                      disabled={!lfCountry}
+                      placeholder={
+                        lfCountry ? 'Все' : 'Сначала выберите страну'
+                      }
+                      onChange={setLfDistrict}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label>Регион</Label>
+                    <FormSelect
+                      value={lf.region}
+                      options={lfRegionOptions?.options ?? []}
+                      disabled={!lf.area}
+                      placeholder={lf.area ? 'Все' : 'Сначала выберите область'}
+                      onChange={setLfRegion}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label>Город</Label>
+                    <FormSelect
+                      value={lf.city}
+                      options={lfCityOptions?.options ?? []}
+                      disabled={!lf.region}
+                      placeholder={
+                        lf.region ? 'Все' : 'Сначала выберите регион'
+                      }
+                      onChange={(v) => setLfField('city', v)}
+                    />
+                  </div>
+                  {!medrepLocked && (
+                    <div className='space-y-1.5'>
+                      <Label>Мед. представитель</Label>
+                      <FormSelect
+                        value={lf.medrep}
+                        options={filterOptions?.medreps ?? []}
+                        placeholder='Все'
+                        onChange={(v) => setLfField('medrep', v)}
+                      />
+                    </div>
+                  )}
+                  <div className='space-y-1.5'>
+                    <Label>Основная специальность</Label>
+                    <FormSelect
+                      value={lf.unified_specialty}
+                      options={filterOptions?.unified_specialties ?? []}
+                      placeholder='Все'
+                      onChange={(v) => setLfField('unified_specialty', v)}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label>Специальность</Label>
+                    <FormSelect
+                      value={lf.specialty}
+                      options={filterOptions?.specialties ?? []}
+                      placeholder='Все'
+                      onChange={(v) => setLfField('specialty', v)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </CardHeader>
 
           <CardContent>
+            <div className='mb-3'>
+              <ListSearchInput value={query} onChange={changeQuery} />
+            </div>
             {error ? (
               <div className='rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive'>
                 Ошибка загрузки данных
