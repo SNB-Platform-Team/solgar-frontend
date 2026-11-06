@@ -53,8 +53,6 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { FormSelect } from './form-select'
 import { PharmacyHardware } from './pharmacy-hardware'
-import { subtypesFor } from './promo-catalog'
-import { PromoFields } from './promo-fields'
 import {
   type PharmacyApiResponse,
   type PharmacyBulkSaveResponse,
@@ -149,7 +147,6 @@ const DEFAULT_PHARMACY_FORM: PharmacyFormValues = {
   pharmacy_work_tel: '',
   pharmacy_no: '',
   comments: '',
-  promo_subtype: '',
   pharmacy_address: '',
   street: '',
   homenumber: '',
@@ -170,15 +167,16 @@ const DEFAULT_PHARMACY_FORM: PharmacyFormValues = {
 // The form's Статус is stored in the pharmacy_group column — the DB's own
 // `status` is an integer soft-delete flag, so it's never sent from here.
 //
-// The Промо Подтип (promo_subtype) has no column of its own — it's written
-// into `comments`, taking priority over Дополнительная when both are set.
+// Промо has no field in the form any more: an existing record's loaded
+// value goes back unchanged, and a blank one isn't sent at all (so nothing
+// is ever overwritten with an empty promo).
 function buildPharmacyPayload(form: PharmacyFormValues) {
   const toNumberOrNull = (v: string) => (v.trim() === '' ? null : Number(v))
-  const { status, promo_subtype, ...rest } = form
+  const { status, promo, ...rest } = form
   return {
     ...rest,
+    ...(promo ? { promo } : {}),
     pharmacy_group: status,
-    comments: promo_subtype || form.comments,
     point_x: toNumberOrNull(form.point_x),
     point_y: toNumberOrNull(form.point_y),
   }
@@ -446,7 +444,6 @@ export function Pharmacies() {
       pharmacy_category: '',
       pharmacy_type: '',
       promo: '',
-      promo_subtype: '',
     }))
 
   // Страна drives Область/Регион/Город in the form too — changing it
@@ -645,14 +642,6 @@ export function Pharmacies() {
         pharmacy_work_tel: data.pharmacy_work_tel ?? '',
         pharmacy_no: data.pharmacy_no ?? '',
         comments: data.comments ?? '',
-        // A Подтип was saved into comments — restore it only if it really
-        // is one of this Промо's subtypes (otherwise comments is just free
-        // text from Дополнительная).
-        promo_subtype: subtypesFor(data.promo ?? '').some(
-          (s) => s.name === data.comments
-        )
-          ? (data.comments ?? '')
-          : '',
         pharmacy_address: data.pharmacy_address ?? '',
         street: data.street ?? '',
         homenumber: data.homenumber ?? '',
@@ -1114,18 +1103,6 @@ export function Pharmacies() {
                         onChange={(v) => setField('pharmacy_type', v)}
                       />
                     </div>
-                    <PromoFields
-                      promo={form.promo}
-                      subtype={form.promo_subtype}
-                      onPromoChange={(v) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          promo: v,
-                          promo_subtype: '',
-                        }))
-                      }
-                      onSubtypeChange={(v) => setField('promo_subtype', v)}
-                    />
                     <div className='space-y-1.5'>
                       <FieldLabel field='status'>Статус</FieldLabel>
                       <FormSelect

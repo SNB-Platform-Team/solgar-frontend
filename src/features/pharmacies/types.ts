@@ -113,9 +113,6 @@ export type PharmacyFormValues = Omit<
 > & {
   point_x: string
   point_y: string
-  /** Form-only: the Подтип picked under Промо (see promo-catalog.ts). Not
-   * its own DB column — buildPharmacyPayload writes it into `comments`. */
-  promo_subtype: string
 }
 
 /** Shape of GET /sales/api/pharmacy/detail/?brand=&id= — `error` is set
