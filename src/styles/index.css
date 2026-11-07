@@ -136,3 +136,19 @@
   transform-origin: 50px 50px;
   animation: capspin 1.4s cubic-bezier(0.6, 0, 0.4, 1) infinite;
 }
+
+/* Required-field markers for the entry forms (see components/form-field.ts):
+   a blank required field's input / select trigger turns red and gets
+   «Обязательное поле» underneath. */
+[data-invalid] [data-slot='input'],
+[data-invalid] [data-slot='select-trigger'] {
+  border-color: var(--destructive);
+}
+
+[data-invalid]::after {
+  content: 'Обязательное поле';
+  display: block;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--destructive);
+}

@@ -46,6 +46,10 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { ListSearchInput, ServerDataTable } from '@/components/data-table'
 import { DateInput } from '@/components/date-input'
 import { ExportExcelButton } from '@/components/export-excel-button'
+import {
+  requiredFieldProps,
+  scrollToFirstInvalidField,
+} from '@/components/form-field'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -209,6 +213,8 @@ const REQUIRED_FIELDS: { key: keyof DoctorFormValues; label: string }[] = [
   { key: 'clinic_name', label: 'Название' },
   { key: 'full_address', label: 'Полный адрес' },
 ]
+
+const REQUIRED_KEYS = new Set(REQUIRED_FIELDS.map(({ key }) => key))
 
 /** "Заполните обязательные поля: ..." for whatever's blank, or null. */
 function missingFieldsError(form: DoctorFormValues): string | null {
@@ -397,6 +403,7 @@ export function Doctors() {
     setForm(DEFAULT_DOCTOR_FORM)
     setEditingId(null)
     setFormError(null)
+    setShowMissing(false)
   }
 
   const removePendingRow = (index: number) =>
@@ -664,17 +671,33 @@ export function Doctors() {
     },
   })
 
+  // Required-field markers: after a failed check every blank required field
+  // is outlined in red (until filled) and the first one is scrolled to.
+  const isMissing = (key: keyof DoctorFormValues) =>
+    REQUIRED_KEYS.has(key) && lockedForm[key].trim() === ''
+  const [showMissing, setShowMissing] = useState(false)
+  const fieldProps = (key: keyof DoctorFormValues) =>
+    requiredFieldProps(key, showMissing && isMissing(key))
+  // False (with markers + the summary message) when something's blank.
+  const validateForm = (): boolean => {
+    const missing = missingFieldsError(lockedForm)
+    if (missing) {
+      setFormError(missing)
+      setShowMissing(true)
+      setTimeout(scrollToFirstInvalidField, 0)
+      return false
+    }
+    setShowMissing(false)
+    return true
+  }
+
   // Добавить — stages the form as a not-yet-saved row instead of calling
   // the API, and clears the form for the next doctor. Сохранить (below)
   // is what actually writes staged rows to the DB.
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault()
     setFormNotice(null)
-    const missing = missingFieldsError(lockedForm)
-    if (missing) {
-      setFormError(missing)
-      return
-    }
+    if (!validateForm()) return
     setFormError(null)
     setPendingRows((prev) => [...prev, lockedForm])
     resetForm()
@@ -688,11 +711,7 @@ export function Doctors() {
 
   const handleUpdate = () => {
     setFormNotice(null)
-    const missing = missingFieldsError(lockedForm)
-    if (missing) {
-      setFormError(missing)
-      return
-    }
+    if (!validateForm()) return
     setFormError(null)
     updateMutation.mutate()
   }
@@ -754,7 +773,7 @@ export function Doctors() {
                     Компания и адрес
                   </h3>
                   <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('brand')}>
                       <Label>
                         Компания <span className='text-destructive'>*</span>
                       </Label>
@@ -765,7 +784,7 @@ export function Doctors() {
                         placeholder='Выберите компанию'
                       />
                     </div>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('country')}>
                       <Label>
                         Страна <span className='text-destructive'>*</span>
                       </Label>
@@ -789,7 +808,7 @@ export function Doctors() {
                         />
                       )}
                     </div>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('area')}>
                       <Label>
                         Область <span className='text-destructive'>*</span>
                       </Label>
@@ -814,7 +833,7 @@ export function Doctors() {
                         />
                       )}
                     </div>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('region')}>
                       <Label>
                         Регион <span className='text-destructive'>*</span>
                       </Label>
@@ -839,7 +858,7 @@ export function Doctors() {
                         />
                       )}
                     </div>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('city')}>
                       <Label>
                         Город <span className='text-destructive'>*</span>
                       </Label>
@@ -872,7 +891,7 @@ export function Doctors() {
                     Доктор
                   </h3>
                   <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('doctor_name')}>
                       <Label>
                         Имя доктора <span className='text-destructive'>*</span>
                       </Label>
@@ -884,7 +903,7 @@ export function Doctors() {
                         placeholder='ФИО доктора'
                       />
                     </div>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('medrep')}>
                       <Label>
                         Мед. представитель{' '}
                         <span className='text-destructive'>*</span>
@@ -900,7 +919,7 @@ export function Doctors() {
                         onChange={(v) => setField('medrep', v)}
                       />
                     </div>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('category')}>
                       <Label>
                         Категория врачей{' '}
                         <span className='text-destructive'>*</span>
@@ -911,7 +930,10 @@ export function Doctors() {
                         onChange={(v) => setField('category', v)}
                       />
                     </div>
-                    <div className='space-y-1.5'>
+                    <div
+                      className='space-y-1.5'
+                      {...fieldProps('unified_specialty')}
+                    >
                       <Label>
                         Основная специальность{' '}
                         <span className='text-destructive'>*</span>
@@ -922,7 +944,7 @@ export function Doctors() {
                         onChange={(v) => setField('unified_specialty', v)}
                       />
                     </div>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('specialty')}>
                       <Label>
                         Специальность{' '}
                         <span className='text-destructive'>*</span>
@@ -942,7 +964,7 @@ export function Doctors() {
                         }
                       />
                     </div>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('doctor_date')}>
                       <Label>
                         Дата активации{' '}
                         <span className='text-destructive'>*</span>
@@ -952,7 +974,7 @@ export function Doctors() {
                         onChange={(v) => setField('doctor_date', v)}
                       />
                     </div>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('activeness')}>
                       <Label>
                         Активность <span className='text-destructive'>*</span>
                       </Label>
@@ -988,7 +1010,10 @@ export function Doctors() {
                     Клиника
                   </h3>
                   <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-                    <div className='space-y-1.5'>
+                    <div
+                      className='space-y-1.5'
+                      {...fieldProps('clinic_status')}
+                    >
                       <Label>
                         Категория <span className='text-destructive'>*</span>
                       </Label>
@@ -998,7 +1023,7 @@ export function Doctors() {
                         onChange={(v) => setField('clinic_status', v)}
                       />
                     </div>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('clinic_name')}>
                       <Label>
                         Название <span className='text-destructive'>*</span>
                       </Label>
@@ -1041,7 +1066,7 @@ export function Doctors() {
                   <h3 className='text-sm font-semibold text-muted-foreground'>
                     Адрес
                   </h3>
-                  <div className='space-y-1.5'>
+                  <div className='space-y-1.5' {...fieldProps('full_address')}>
                     <Label>
                       Полный адрес <span className='text-destructive'>*</span>
                     </Label>

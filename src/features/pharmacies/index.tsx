@@ -47,6 +47,10 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { ListSearchInput, ServerDataTable } from '@/components/data-table'
 import { DateInput } from '@/components/date-input'
 import { ExportExcelButton } from '@/components/export-excel-button'
+import {
+  requiredFieldProps,
+  scrollToFirstInvalidField,
+} from '@/components/form-field'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -480,6 +484,7 @@ export function Pharmacies() {
     setEditingId(null)
     setFormError(null)
     setForceMode(false)
+    setShowMissing(false)
   }
 
   const removePendingRow = (index: number) =>
@@ -852,6 +857,30 @@ export function Pharmacies() {
     },
   })
 
+  // Required-field markers: after a failed check every blank required field
+  // is outlined in red (until filled) and the first one is scrolled to.
+  // In the duplicate flow (forceMode) Номер аптеки is required too.
+  const isMissing = (key: keyof PharmacyFormValues) =>
+    (REQUIRED_KEYS.has(key) || (forceMode && key === 'pharmacy_no')) &&
+    lockedForm[key].trim() === ''
+  const [showMissing, setShowMissing] = useState(false)
+  const fieldProps = (key: keyof PharmacyFormValues) =>
+    requiredFieldProps(key, showMissing && isMissing(key))
+  // False (with markers + the summary message) when something's blank.
+  const validateForm = (): boolean => {
+    const missing =
+      missingFieldsError(lockedForm) ??
+      (forceMode && isMissing('pharmacy_no') ? DUPLICATE_NO_REQUIRED : null)
+    if (missing) {
+      setFormError(missing)
+      setShowMissing(true)
+      setTimeout(scrollToFirstInvalidField, 0)
+      return false
+    }
+    setShowMissing(false)
+    return true
+  }
+
   // Добавить аптека — stages the form as a not-yet-saved row instead of
   // calling the API, and clears the form for the next pharmacy. Сохранить
   // (below) is what actually writes staged rows to the DB.
@@ -863,11 +892,7 @@ export function Pharmacies() {
       return
     }
     setFormNotice(null)
-    const missing = missingFieldsError(lockedForm)
-    if (missing) {
-      setFormError(missing)
-      return
-    }
+    if (!validateForm()) return
     setFormError(null)
     setPendingRows((prev) => [...prev, lockedForm])
     resetForm()
@@ -876,12 +901,7 @@ export function Pharmacies() {
   const handleSaveAll = () => {
     setFormNotice(null)
     if (forceMode) {
-      const missing = missingFieldsError(lockedForm)
-      if (missing || !lockedForm.pharmacy_no.trim()) {
-        setFormError(missing ?? DUPLICATE_NO_REQUIRED)
-        pharmacyNoRef.current?.focus()
-        return
-      }
+      if (!validateForm()) return
       setFormError(null)
       forceSaveMutation.mutate()
       return
@@ -905,11 +925,7 @@ export function Pharmacies() {
 
   const handleUpdate = () => {
     setFormNotice(null)
-    const missing = missingFieldsError(lockedForm)
-    if (missing) {
-      setFormError(missing)
-      return
-    }
+    if (!validateForm()) return
     setFormError(null)
     updateMutation.mutate()
   }
@@ -998,7 +1014,7 @@ export function Pharmacies() {
                         placeholder='Выберите компанию'
                       />
                     </div>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('country')}>
                       <FieldLabel field='country'>Страна</FieldLabel>
                       {isEditing ? (
                         <Input
@@ -1020,7 +1036,7 @@ export function Pharmacies() {
                         />
                       )}
                     </div>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('area')}>
                       <FieldLabel field='area'>Область</FieldLabel>
                       {isEditing ? (
                         <Input
@@ -1043,7 +1059,7 @@ export function Pharmacies() {
                         />
                       )}
                     </div>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('region')}>
                       <FieldLabel field='region'>Регион</FieldLabel>
                       {isEditing ? (
                         <Input
@@ -1066,7 +1082,7 @@ export function Pharmacies() {
                         />
                       )}
                     </div>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('city')}>
                       <FieldLabel field='city'>Город</FieldLabel>
                       {isEditing ? (
                         <Input
@@ -1116,7 +1132,10 @@ export function Pharmacies() {
                     Pharm Info
                   </h3>
                   <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-                    <div className='space-y-1.5'>
+                    <div
+                      className='space-y-1.5'
+                      {...fieldProps('group_company')}
+                    >
                       <FieldLabel field='group_company'>
                         Группа компаний
                       </FieldLabel>
@@ -1132,7 +1151,10 @@ export function Pharmacies() {
                         }
                       />
                     </div>
-                    <div className='space-y-1.5'>
+                    <div
+                      className='space-y-1.5'
+                      {...fieldProps('subgroup_company')}
+                    >
                       <FieldLabel field='subgroup_company'>
                         Подгруппа
                       </FieldLabel>
@@ -1157,7 +1179,10 @@ export function Pharmacies() {
                         />
                       )}
                     </div>
-                    <div className='space-y-1.5'>
+                    <div
+                      className='space-y-1.5'
+                      {...fieldProps('marketing_staff')}
+                    >
                       <FieldLabel field='marketing_staff'>
                         Мед. представитель
                       </FieldLabel>
@@ -1172,7 +1197,10 @@ export function Pharmacies() {
                         onChange={(v) => setField('marketing_staff', v)}
                       />
                     </div>
-                    <div className='space-y-1.5'>
+                    <div
+                      className='space-y-1.5'
+                      {...fieldProps('pharmacy_category')}
+                    >
                       <FieldLabel field='pharmacy_category'>
                         Категория
                       </FieldLabel>
@@ -1200,7 +1228,10 @@ export function Pharmacies() {
                         onChange={(v) => setField('assortiment1', v)}
                       />
                     </div>
-                    <div className='space-y-1.5'>
+                    <div
+                      className='space-y-1.5'
+                      {...fieldProps('pharmacy_activeness')}
+                    >
                       <FieldLabel field='pharmacy_activeness'>
                         Активность
                       </FieldLabel>
@@ -1210,7 +1241,10 @@ export function Pharmacies() {
                         onChange={(v) => setField('pharmacy_activeness', v)}
                       />
                     </div>
-                    <div className='space-y-1.5'>
+                    <div
+                      className='space-y-1.5'
+                      {...fieldProps('pharmacy_type')}
+                    >
                       <FieldLabel field='pharmacy_type'>Тип аптеки</FieldLabel>
                       <FormSelect
                         value={form.pharmacy_type}
@@ -1218,7 +1252,7 @@ export function Pharmacies() {
                         onChange={(v) => setField('pharmacy_type', v)}
                       />
                     </div>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('status')}>
                       <FieldLabel field='status'>Статус</FieldLabel>
                       <FormSelect
                         value={form.status}
@@ -1325,7 +1359,7 @@ export function Pharmacies() {
                     Адрес аптеки Информация
                   </h3>
                   <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-                    <div className='space-y-1.5'>
+                    <div className='space-y-1.5' {...fieldProps('pharmacy_no')}>
                       <FieldLabel
                         field='pharmacy_no'
                         required={forceMode}
