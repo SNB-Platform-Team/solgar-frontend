@@ -48,7 +48,14 @@ export function FormSelect({
   return (
     <Select
       value={selectValue}
-      onValueChange={(v) => onChange(v === EMPTY ? '' : v)}
+      // A bare '' never comes from the user (a picked "—" is EMPTY): it's
+      // Radix's hidden native <select> echoing a value it has no <option>
+      // for yet — e.g. a whole record loaded into the form before the
+      // cascade lists arrive — which would otherwise wipe the field.
+      onValueChange={(v) => {
+        if (v === '') return
+        onChange(v === EMPTY ? '' : v)
+      }}
       disabled={disabled}
     >
       <SelectTrigger className='w-full'>
