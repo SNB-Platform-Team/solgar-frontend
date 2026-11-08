@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { authMeQueryOptions } from '@/lib/auth'
+import { withChanges } from '@/lib/field-changes'
 import { useCountryLock } from '@/hooks/use-country-lock'
 import { Alert, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -645,7 +646,7 @@ export function Doctors() {
         setFormError(data.error)
         return
       }
-      setFormNotice('Карточка врача обновлена')
+      setFormNotice(withChanges('Карточка врача обновлена', data.changes))
       resetForm()
       queryClient.invalidateQueries({ queryKey: ['doctors'] })
     },

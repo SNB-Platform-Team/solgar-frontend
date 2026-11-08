@@ -1,3 +1,5 @@
+import type { FieldChange } from '@/lib/field-changes'
+
 export interface DoctorBrand {
   value: string
   label: string
@@ -117,6 +119,8 @@ export interface DoctorCreateResponse {
 /** Shape of POST /sales/api/doctor/update/ and .../delete/ */
 export interface DoctorMutationResponse {
   error?: string
+  /** update/ only: the fields that changed. */
+  changes?: FieldChange[]
 }
 
 /**

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { authMeQueryOptions } from '@/lib/auth'
+import { withChanges } from '@/lib/field-changes'
 import { useCountryLock } from '@/hooks/use-country-lock'
 import { Alert, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -831,7 +832,7 @@ export function Pharmacies() {
         setFormError(data.error)
         return
       }
-      setFormNotice('Карточка аптеки обновлена')
+      setFormNotice(withChanges('Карточка аптеки обновлена', data.changes))
       resetForm()
       queryClient.invalidateQueries({ queryKey: ['pharmacies'] })
     },

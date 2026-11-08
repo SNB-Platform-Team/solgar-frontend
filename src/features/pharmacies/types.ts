@@ -1,3 +1,5 @@
+import type { FieldChange } from '@/lib/field-changes'
+
 export interface PharmacyBrand {
   value: string
   label: string
@@ -186,6 +188,8 @@ export interface PharmacyCreateResponse {
 /** Shape of POST /sales/api/pharmacy/update/ and .../delete/ */
 export interface PharmacyMutationResponse {
   error?: string
+  /** update/ only: the fields that changed. */
+  changes?: FieldChange[]
 }
 
 /**
