@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { FormSelect } from './form-select'
+import { FormSelect } from '@/components/form-select'
 import { PROMO_CODES, photoSubtypesFor, subtypesFor } from './promo-catalog'
 
 /**

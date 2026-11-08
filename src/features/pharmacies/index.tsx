@@ -52,12 +52,12 @@ import {
   requiredFieldProps,
   scrollToFirstInvalidField,
 } from '@/components/form-field'
+import { FormSelect } from '@/components/form-select'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { FormSelect } from './form-select'
 import { PharmacyHardware } from './pharmacy-hardware'
 import {
   type PharmacyApiResponse,
@@ -1051,6 +1051,7 @@ export function Pharmacies() {
                           value={form.area}
                           options={formAreaOptions?.options ?? []}
                           disabled={!formCountry && !form.area}
+                          requires='Страна'
                           placeholder={
                             formCountry
                               ? 'Не выбрано'
@@ -1074,6 +1075,7 @@ export function Pharmacies() {
                           value={form.region}
                           options={formRegionOptions?.options ?? []}
                           disabled={!form.area && !form.region}
+                          requires='Область'
                           placeholder={
                             form.area
                               ? 'Не выбрано'
@@ -1097,6 +1099,7 @@ export function Pharmacies() {
                           value={form.city}
                           options={formCityOptions?.options ?? []}
                           disabled={!form.region && !form.city}
+                          requires='Регион'
                           placeholder={
                             form.region
                               ? 'Не выбрано'
@@ -1119,6 +1122,7 @@ export function Pharmacies() {
                         value={form.metro}
                         options={formMetroOptions?.options ?? []}
                         disabled={!form.city && !form.metro}
+                        requires='Город'
                         placeholder={
                           form.city ? 'Не выбрано' : 'Сначала выберите город'
                         }
@@ -1171,6 +1175,7 @@ export function Pharmacies() {
                           value={form.subgroup_company}
                           options={formSubchainOptions?.options ?? []}
                           disabled={!formCountry && !form.subgroup_company}
+                          requires='Страна'
                           placeholder={
                             formCountry
                               ? 'Не выбрано'
@@ -1781,6 +1786,7 @@ export function Pharmacies() {
                       value={lf.area}
                       options={lfAreaOptions?.options ?? []}
                       disabled={!lfCountry}
+                      requires='Страна'
                       onChange={(v) =>
                         changeLf({ area: v, region: '', city: '' })
                       }
@@ -1792,6 +1798,7 @@ export function Pharmacies() {
                       value={lf.region}
                       options={lfRegionOptions?.options ?? []}
                       disabled={!lf.area}
+                      requires='Область'
                       onChange={(v) => changeLf({ region: v, city: '' })}
                     />
                   </div>
@@ -1801,6 +1808,7 @@ export function Pharmacies() {
                       value={lf.city}
                       options={lfCityOptions?.options ?? []}
                       disabled={!lf.region}
+                      requires='Регион'
                       onChange={(v) => changeLf({ city: v })}
                     />
                   </div>
@@ -1830,6 +1838,7 @@ export function Pharmacies() {
                       value={lf.subgroup_company}
                       options={lfSubchainOptions?.options ?? []}
                       disabled={!lf.group_company}
+                      requires='Группа компаний'
                       onChange={(v) => changeLf({ subgroup_company: v })}
                     />
                   </div>

@@ -5,6 +5,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 // Radix Select item values can't be an empty string — "not set" is mapped to
 // this sentinel.
@@ -18,12 +23,16 @@ export function FormSelect({
   onChange,
   disabled,
   placeholder = 'Не выбрано',
+  requires,
 }: {
   value: string
   options: string[]
   onChange: (value: string) => void
   disabled?: boolean
   placeholder?: string
+  /** For a cascade field: the caption of the field that unlocks it, shown
+   * on hover while `disabled` as «Сначала выберите «{requires}»». */
+  requires?: string
 }) {
   // The current value is always shown, whether or not it's in `options`:
   // "Найти адрес" can set values the cascade lists don't know, and clicking
@@ -45,7 +54,7 @@ export function FormSelect({
       : cleanOptions
   const selectValue = trimmed === '' ? EMPTY : value
 
-  return (
+  const select = (
     <Select
       value={selectValue}
       // A bare '' never comes from the user (a picked "—" is EMPTY): it's
@@ -72,5 +81,19 @@ export function FormSelect({
         ))}
       </SelectContent>
     </Select>
+  )
+
+  if (!disabled || !requires) return select
+  // A disabled button gets no pointer events, so the tooltip hangs off a
+  // wrapper instead (which keeps the not-allowed cursor).
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className='w-full cursor-not-allowed [&_[data-slot=select-trigger]]:pointer-events-none'>
+          {select}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>Сначала выберите «{requires}»</TooltipContent>
+    </Tooltip>
   )
 }
