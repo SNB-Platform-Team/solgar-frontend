@@ -60,6 +60,7 @@ export interface DoctorDetail {
   activeness: string
   doctor_tel: string
   doctor_email: string
+  clinic_tel: string
   // Клиника
   clinic_status: string
   clinic_name: string
