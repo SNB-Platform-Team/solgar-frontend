@@ -207,10 +207,10 @@ const REQUIRED_FIELDS: { key: keyof DoctorFormValues; label: string }[] = [
   { key: 'unified_specialty', label: 'Основная специальность' },
   { key: 'specialty', label: 'Специальность' },
   { key: 'activeness', label: 'Активность' },
-  { key: 'clinic_tel', label: 'Телефон клиники' },
   { key: 'doctor_date', label: 'Дата активации' },
   { key: 'clinic_status', label: 'Категория' },
   { key: 'clinic_name', label: 'Название' },
+  { key: 'clinic_tel', label: 'Телефон клиники' },
   { key: 'full_address', label: 'Полный адрес' },
 ]
 
@@ -979,17 +979,6 @@ export function Doctors() {
                         onChange={(e) => setField('doctor_tel', e.target.value)}
                       />
                     </div>
-                    <div className='space-y-1.5' {...fieldProps('clinic_tel')}>
-                      <Label>
-                        Телефон клиники{' '}
-                        <span className='text-destructive'>*</span>
-                      </Label>
-                      <Input
-                        type='tel'
-                        value={form.clinic_tel}
-                        onChange={(e) => setField('clinic_tel', e.target.value)}
-                      />
-                    </div>
                     <div className='space-y-1.5'>
                       <Label>Эл. адрес</Label>
                       <Input
@@ -1055,6 +1044,17 @@ export function Doctors() {
                         onChange={(e) =>
                           setField('clinic_count', e.target.value)
                         }
+                      />
+                    </div>
+                    <div className='space-y-1.5' {...fieldProps('clinic_tel')}>
+                      <Label>
+                        Телефон клиники{' '}
+                        <span className='text-destructive'>*</span>
+                      </Label>
+                      <Input
+                        type='tel'
+                        value={form.clinic_tel}
+                        onChange={(e) => setField('clinic_tel', e.target.value)}
                       />
                     </div>
                     <div className='space-y-1.5 lg:col-span-3'>
