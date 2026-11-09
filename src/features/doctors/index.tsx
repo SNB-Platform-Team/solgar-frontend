@@ -211,7 +211,7 @@ const REQUIRED_FIELDS: { key: keyof DoctorFormValues; label: string }[] = [
   { key: 'clinic_status', label: 'Категория' },
   { key: 'clinic_name', label: 'Название' },
   { key: 'clinic_tel', label: 'Телефон клиники' },
-  { key: 'full_address', label: 'Полный адрес' },
+  { key: 'clinic_address', label: 'Адрес клиники' },
 ]
 
 const REQUIRED_KEYS = new Set(REQUIRED_FIELDS.map(({ key }) => key))
@@ -1065,8 +1065,13 @@ export function Doctors() {
                   <h3 className='text-sm font-semibold text-muted-foreground'>
                     Адрес
                   </h3>
-                  <div className='space-y-1.5'>
-                    <Label htmlFor='clinic_address'>Адрес клиники</Label>
+                  <div
+                    className='space-y-1.5'
+                    {...fieldProps('clinic_address')}
+                  >
+                    <Label htmlFor='clinic_address'>
+                      Адрес клиники <span className='text-destructive'>*</span>
+                    </Label>
                     <div className='flex flex-col gap-2 sm:flex-row'>
                       <Input
                         id='clinic_address'
@@ -1098,10 +1103,8 @@ export function Doctors() {
                       адрес» ищет его в Яндексе и заполняет поля ниже.
                     </p>
                   </div>
-                  <div className='space-y-1.5' {...fieldProps('full_address')}>
-                    <Label>
-                      Полный адрес <span className='text-destructive'>*</span>
-                    </Label>
+                  <div className='space-y-1.5'>
+                    <Label>Полный адрес</Label>
                     <Input
                       value={form.full_address}
                       readOnly
