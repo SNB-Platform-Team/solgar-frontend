@@ -581,11 +581,6 @@ export function Doctors() {
         point_x: data.point_x != null ? String(data.point_x) : prev.point_x,
         point_y: data.point_y != null ? String(data.point_y) : prev.point_y,
         full_address: data.full_address || prev.full_address,
-        // Адрес клиники has no input of its own any more — it just follows
-        // the found address, so the list's Clinic Address column stays in
-        // step. Untouched (= the loaded value) unless an address is found;
-        // a blank one is filled from full_address server-side on save.
-        clinic_address: data.full_address ?? prev.clinic_address,
         street: data.street ?? prev.street,
         homenumber: data.home_number ?? prev.homenumber,
         // The geocoder's own area names go to their own columns — the
@@ -1071,6 +1066,15 @@ export function Doctors() {
                         value={form.clinic_count}
                         onChange={(e) =>
                           setField('clinic_count', e.target.value)
+                        }
+                      />
+                    </div>
+                    <div className='space-y-1.5 lg:col-span-3'>
+                      <Label>Адрес клиники</Label>
+                      <Input
+                        value={form.clinic_address}
+                        onChange={(e) =>
+                          setField('clinic_address', e.target.value)
                         }
                       />
                     </div>

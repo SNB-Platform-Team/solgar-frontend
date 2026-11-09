@@ -751,11 +751,6 @@ export function Pharmacies() {
         point_x: data.point_x != null ? String(data.point_x) : prev.point_x,
         point_y: data.point_y != null ? String(data.point_y) : prev.point_y,
         full_address: data.full_address ?? prev.full_address,
-        // Адрес аптеки has no input of its own any more — it just follows
-        // the found address, so the list's PHARMACY ADDRESS column stays in
-        // step. Untouched (= the loaded value) unless an address is found;
-        // a blank one is filled from full_address server-side on save.
-        pharmacy_address: data.full_address ?? prev.pharmacy_address,
         street: data.street ?? prev.street,
         homenumber: data.home_number ?? prev.homenumber,
         // The geocoder's own area names go to their own columns — the
@@ -1378,6 +1373,15 @@ export function Pharmacies() {
                       <Input
                         value={form.comments}
                         onChange={(e) => setField('comments', e.target.value)}
+                      />
+                    </div>
+                    <div className='space-y-1.5 lg:col-span-3'>
+                      <Label>Адрес аптеки</Label>
+                      <Input
+                        value={form.pharmacy_address}
+                        onChange={(e) =>
+                          setField('pharmacy_address', e.target.value)
+                        }
                       />
                     </div>
                   </div>
