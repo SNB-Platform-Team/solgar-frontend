@@ -142,7 +142,6 @@ const DEFAULT_PHARMACY_FORM: PharmacyFormValues = {
   promo: '',
   status: 'STANDARD',
   sku: '',
-  cornerNo: '',
   pharmacy_activation_date: todayISO(),
   pharmacy_response_person: '',
   pharmacy_email: '',
@@ -701,7 +700,6 @@ export function Pharmacies() {
         promo: data.promo ?? '',
         status: data.pharmacy_group ?? '',
         sku: data.sku ?? '',
-        cornerNo: data.cornerNo ?? '',
         pharmacy_activation_date: data.pharmacy_activation_date ?? '',
         pharmacy_response_person: data.pharmacy_response_person ?? '',
         pharmacy_email: data.pharmacy_email ?? '',
@@ -1272,13 +1270,6 @@ export function Pharmacies() {
                         value={form.sku}
                         options={formFilterOptions?.skus ?? []}
                         onChange={(v) => setField('sku', v)}
-                      />
-                    </div>
-                    <div className='space-y-1.5'>
-                      <Label>Корнер номер</Label>
-                      <Input
-                        value={form.cornerNo}
-                        onChange={(e) => setField('cornerNo', e.target.value)}
                       />
                     </div>
                     <div className='space-y-1.5'>

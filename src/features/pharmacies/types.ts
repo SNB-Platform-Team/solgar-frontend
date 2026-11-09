@@ -109,9 +109,11 @@ export interface PharmacyDetail {
  * <Input>s); only parsed to numbers right before a create/update request
  * goes out — see buildPharmacyPayload.
  */
+// cornerNo isn't part of the form (Корнер номер was removed from it), so
+// it's never sent and an existing value is left as it is.
 export type PharmacyFormValues = Omit<
   PharmacyDetail,
-  'id' | 'point_x' | 'point_y'
+  'id' | 'point_x' | 'point_y' | 'cornerNo'
 > & {
   point_x: string
   point_y: string
