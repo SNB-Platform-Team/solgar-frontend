@@ -29,6 +29,11 @@ export interface DoctorFilterOptions {
   unified_specialties: string[]
   medreps: string[]
   clinics?: string[]
+  /** Full (non-cascading) geo lists for the Фильтр panel. */
+  areas?: string[]
+  regions?: string[]
+  cities?: string[]
+  metros?: string[]
 }
 
 /** One cascading level — GET filter-options/?level=&country=&area=&region= */

@@ -318,15 +318,30 @@ export function Pharmacies() {
   ) as ListFilters
   const changeLf = (patch: Partial<ListFilters>) =>
     setSearch({ ...listFiltersToSearch(patch), page: 1 })
-  // A country-locked user's list is always their own country.
-  const lfCountry = locked ? countryLock.userCountry : lf.country
+  // Страна in the panel is never locked: a medrep's own country (me.country)
+  // is only preselected — once on arrival, and again by a reset — and can be
+  // changed or cleared freely. Admins (is_staff) get no default.
+  const me = useQuery(authMeQueryOptions).data
+  const defaultLfCountry = me && !me.is_staff ? me.country || '' : ''
+  const lfCountry = lf.country
+  const lfDefaultedRef = useRef(false)
+  useEffect(() => {
+    if (lfDefaultedRef.current || !defaultLfCountry) return
+    lfDefaultedRef.current = true
+    if (search.country === undefined)
+      navigate({
+        search: (prev) => ({ ...prev, country: defaultLfCountry }),
+        replace: true,
+        resetScroll: false,
+      })
+  }, [defaultLfCountry, search.country, navigate])
   // Only where the dropdowns show — the filters themselves stay in the URL.
   const [filtersOpen, setFiltersOpen] = useState(false)
   // For the Фильтр button's badge, so applied filters stay visible while the
   // panel is closed. Every filter in the URL counts (hidden ones included —
-  // they still narrow the list), except a locked user's forced country.
+  // they still narrow the list), except a medrep's default country.
   const activeFilterCount = LIST_FILTER_KEYS.filter(
-    (k) => lf[k] && !(k === 'country' && locked)
+    (k) => lf[k] && !(k === 'country' && lf[k] === defaultLfCountry)
   ).length
 
   // resetScroll: false — this navigate() only ever updates brand/search/
@@ -373,19 +388,29 @@ export function Pharmacies() {
     setSearch({ page: 1, search: value || undefined })
 
   // «Сбросить все фильтры» — every filter (hidden ones included) and the
-  // search go; only the brand stays. A locked user's country isn't a URL
-  // param anyway (see lfCountry).
+  // search go; only the brand stays (plus a medrep's default
+  // country — see defaultLfCountry).
   const hasAnyFilter =
     query !== '' ||
-    LIST_FILTER_KEYS.some((k) => lf[k] && !(k === 'country' && locked))
+    LIST_FILTER_KEYS.some(
+      (k) => lf[k] && !(k === 'country' && lf[k] === defaultLfCountry)
+    )
   const resetAllFilters = () =>
-    navigate({ search: { brand: search.brand, page: 1 }, resetScroll: false })
+    navigate({
+      search: {
+        brand: search.brand,
+        page: 1,
+        country: defaultLfCountry || undefined,
+      },
+      resetScroll: false,
+    })
 
   const changeBrand = (newBrand: string) => {
     // Each brand is its own table with its own option lists, so the filters
     // picked for the previous one no longer apply.
     setSearch({
       ...listFiltersToSearch(EMPTY_LIST_FILTERS),
+      country: defaultLfCountry || undefined,
       brand: newBrand,
       page: 1,
     })
@@ -421,23 +446,6 @@ export function Pharmacies() {
     },
     enabled,
   })
-  const { data: lfAreaOptions } = useQuery(
-    lfCascade('area', { country: lfCountry }, Boolean(lfCountry))
-  )
-  const { data: lfRegionOptions } = useQuery(
-    lfCascade(
-      'region',
-      { country: lfCountry, area: lf.area },
-      Boolean(lfCountry && lf.area)
-    )
-  )
-  const { data: lfCityOptions } = useQuery(
-    lfCascade(
-      'city',
-      { country: lfCountry, area: lf.area, region: lf.region },
-      Boolean(lfCountry && lf.area && lf.region)
-    )
-  )
   const { data: lfSubchainOptions } = useQuery(
     lfCascade(
       'subchain',
@@ -1757,12 +1765,7 @@ export function Pharmacies() {
                     <Label>Страна</Label>
                     <FormSelect
                       value={lfCountry}
-                      options={
-                        locked
-                          ? [countryLock.userCountry]
-                          : (lfOptions?.countries ?? [])
-                      }
-                      disabled={countryDisabled}
+                      options={lfOptions?.countries ?? []}
                       onChange={(v) =>
                         changeLf({
                           country: v,
@@ -1779,31 +1782,23 @@ export function Pharmacies() {
                     <Label>Область</Label>
                     <FormSelect
                       value={lf.area}
-                      options={lfAreaOptions?.options ?? []}
-                      disabled={!lfCountry}
-                      requires='Страна'
-                      onChange={(v) =>
-                        changeLf({ area: v, region: '', city: '' })
-                      }
+                      options={lfOptions?.areas ?? []}
+                      onChange={(v) => changeLf({ area: v })}
                     />
                   </div>
                   <div className='space-y-1.5'>
                     <Label>Регион</Label>
                     <FormSelect
                       value={lf.region}
-                      options={lfRegionOptions?.options ?? []}
-                      disabled={!lf.area}
-                      requires='Область'
-                      onChange={(v) => changeLf({ region: v, city: '' })}
+                      options={lfOptions?.regions ?? []}
+                      onChange={(v) => changeLf({ region: v })}
                     />
                   </div>
                   <div className='space-y-1.5'>
                     <Label>Город</Label>
                     <FormSelect
                       value={lf.city}
-                      options={lfCityOptions?.options ?? []}
-                      disabled={!lf.region}
-                      requires='Регион'
+                      options={lfOptions?.cities ?? []}
                       onChange={(v) => changeLf({ city: v })}
                     />
                   </div>

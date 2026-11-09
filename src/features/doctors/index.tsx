@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
@@ -260,20 +260,33 @@ export function Doctors() {
     setSearch({ ...listFiltersToSearch(patch), page: 1 })
   const setLfField = (key: keyof ListFilters, value: string) =>
     changeLf({ [key]: value })
-  // Страна → Область → Регион → Город: a change clears whatever depends on it.
+  // Область/Регион/Город are independent of each other; Страна still
+  // clears them (their picks may not exist in the new country).
   const setLfCountry = (value: string) =>
     changeLf({ country: value, area: '', region: '', city: '' })
-  const setLfDistrict = (value: string) =>
-    changeLf({ area: value, region: '', city: '' })
-  const setLfRegion = (value: string) => changeLf({ region: value, city: '' })
-  // A country-locked user's list is always their own country.
-  const lfCountry = locked ? countryLock.userCountry : lf.country
+  // Страна in the panel is never locked: a medrep's own country (me.country)
+  // is only preselected — once on arrival, and again by a reset — and can be
+  // changed or cleared freely. Admins (is_staff) get no default.
+  const me = useQuery(authMeQueryOptions).data
+  const defaultLfCountry = me && !me.is_staff ? me.country || '' : ''
+  const lfCountry = lf.country
+  const lfDefaultedRef = useRef(false)
+  useEffect(() => {
+    if (lfDefaultedRef.current || !defaultLfCountry) return
+    lfDefaultedRef.current = true
+    if (search.country === undefined)
+      navigate({
+        search: (prev) => ({ ...prev, country: defaultLfCountry }),
+        replace: true,
+        resetScroll: false,
+      })
+  }, [defaultLfCountry, search.country, navigate])
   // Only where the dropdowns show — the filters themselves stay in the URL.
   const [filtersOpen, setFiltersOpen] = useState(false)
   // For the Фильтр button's badge, so applied filters stay visible while the
-  // panel is closed. A locked user's forced country doesn't count.
+  // panel is closed. A medrep's default country doesn't count.
   const activeFilterCount = PANEL_FILTER_KEYS.filter(
-    (k) => lf[k] && !(k === 'country' && locked)
+    (k) => lf[k] && !(k === 'country' && lf[k] === defaultLfCountry)
   ).length
 
   // resetScroll: false — this navigate() only ever updates brand/search/
@@ -323,40 +336,6 @@ export function Doctors() {
     },
   })
 
-  // The list filter's own cascade lists, separate from the entry form's.
-  const lfCascade = (
-    level: DoctorCascadeOptions['level'],
-    extra: Record<string, string>,
-    enabled: boolean
-  ) => ({
-    queryKey: ['doctor-listfilter-cascade', level, extra],
-    queryFn: async () => {
-      const params = new URLSearchParams({ level, ...extra })
-      const res = await api.get<DoctorCascadeOptions>(
-        `/sales/api/doctor/filter-options/?${params}`
-      )
-      return res.data
-    },
-    enabled,
-  })
-  const { data: lfDistrictOptions } = useQuery(
-    lfCascade('area', { country: lfCountry }, Boolean(lfCountry))
-  )
-  const { data: lfRegionOptions } = useQuery(
-    lfCascade(
-      'region',
-      { country: lfCountry, area: lf.area },
-      Boolean(lfCountry && lf.area)
-    )
-  )
-  const { data: lfCityOptions } = useQuery(
-    lfCascade(
-      'city',
-      { country: lfCountry, area: lf.area, region: lf.region },
-      Boolean(lfCountry && lf.area && lf.region)
-    )
-  )
-
   const brands = data?.brands ?? [{ value: DEFAULT_BRAND, label: 'Все' }]
 
   // «Поиск по таблице» — the server-side search over all records (debounced
@@ -365,13 +344,22 @@ export function Doctors() {
     setSearch({ page: 1, search: value || undefined })
 
   // «Сбросить все фильтры» — every filter (hidden ones included) and the
-  // search go; only the brand stays. A locked user's country isn't a URL
-  // param anyway (see lfCountry).
+  // search go; only the brand stays (plus a medrep's default
+  // country — see defaultLfCountry).
   const hasAnyFilter =
     query !== '' ||
-    LIST_FILTER_KEYS.some((k) => lf[k] && !(k === 'country' && locked))
+    LIST_FILTER_KEYS.some(
+      (k) => lf[k] && !(k === 'country' && lf[k] === defaultLfCountry)
+    )
   const resetAllFilters = () =>
-    navigate({ search: { brand: search.brand, page: 1 }, resetScroll: false })
+    navigate({
+      search: {
+        brand: search.brand,
+        page: 1,
+        country: defaultLfCountry || undefined,
+      },
+      resetScroll: false,
+    })
 
   const changeBrand = (newBrand: string) => {
     setSearch({
@@ -1424,12 +1412,8 @@ export function Doctors() {
                     <Label>Страна</Label>
                     <FormSelect
                       value={lfCountry}
-                      options={
-                        locked
-                          ? [countryLock.userCountry]
-                          : (filterOptions?.countries ?? [])
-                      }
-                      disabled={countryDisabled}
+                      options={filterOptions?.countries ?? []}
+                      placeholder='Все'
                       onChange={setLfCountry}
                     />
                   </div>
@@ -1437,36 +1421,26 @@ export function Doctors() {
                     <Label>Область</Label>
                     <FormSelect
                       value={lf.area}
-                      options={lfDistrictOptions?.options ?? []}
-                      disabled={!lfCountry}
-                      requires='Страна'
-                      placeholder={
-                        lfCountry ? 'Все' : 'Сначала выберите страну'
-                      }
-                      onChange={setLfDistrict}
+                      options={filterOptions?.areas ?? []}
+                      placeholder='Все'
+                      onChange={(v) => setLfField('area', v)}
                     />
                   </div>
                   <div className='space-y-1.5'>
                     <Label>Регион</Label>
                     <FormSelect
                       value={lf.region}
-                      options={lfRegionOptions?.options ?? []}
-                      disabled={!lf.area}
-                      requires='Область'
-                      placeholder={lf.area ? 'Все' : 'Сначала выберите область'}
-                      onChange={setLfRegion}
+                      options={filterOptions?.regions ?? []}
+                      placeholder='Все'
+                      onChange={(v) => setLfField('region', v)}
                     />
                   </div>
                   <div className='space-y-1.5'>
                     <Label>Город</Label>
                     <FormSelect
                       value={lf.city}
-                      options={lfCityOptions?.options ?? []}
-                      disabled={!lf.region}
-                      requires='Регион'
-                      placeholder={
-                        lf.region ? 'Все' : 'Сначала выберите регион'
-                      }
+                      options={filterOptions?.cities ?? []}
+                      placeholder='Все'
                       onChange={(v) => setLfField('city', v)}
                     />
                   </div>

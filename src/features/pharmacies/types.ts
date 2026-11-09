@@ -35,6 +35,12 @@ export interface PharmacyFilterOptions {
   skus?: string[]
   /** Статус choices for the form — country-scoped server-side. */
   statuses?: string[]
+  /** Full (non-cascading) geo lists for the Фильтр panel — country-scoped
+   * when ?country= is sent. */
+  areas?: string[]
+  regions?: string[]
+  cities?: string[]
+  metros?: string[]
 }
 
 /** One cascading level — GET filter-options/?brand=&level=&country=&area=&region= */
