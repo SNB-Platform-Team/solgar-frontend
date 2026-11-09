@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import {
   Select,
   SelectContent,
@@ -54,20 +55,32 @@ export function FormSelect({
       : cleanOptions
   const selectValue = trimmed === '' ? EMPTY : value
 
+  // Inside a <form>, Radix also renders a hidden native <select>, and
+  // anything that changes that one fires onValueChange too — the browser's
+  // address autofill does (picking a saved address in Адрес клиники
+  // silently set Город to the profile's city), and so does Radix's own echo
+  // of a value it has no <option> for yet. So a change only counts while
+  // the user is actually on this field: its list open, or its trigger
+  // focused (keyboard typeahead on the closed trigger).
+  const openRef = useRef(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
   const select = (
     <Select
       value={selectValue}
-      // A bare '' never comes from the user (a picked "—" is EMPTY): it's
-      // Radix's hidden native <select> echoing a value it has no <option>
-      // for yet — e.g. a whole record loaded into the form before the
-      // cascade lists arrive — which would otherwise wipe the field.
+      onOpenChange={(open) => {
+        openRef.current = open
+      }}
       onValueChange={(v) => {
-        if (v === '') return
+        const fromUser =
+          openRef.current || document.activeElement === triggerRef.current
+        // A bare '' never comes from the user (a picked "—" is EMPTY).
+        if (!fromUser || v === '') return
         onChange(v === EMPTY ? '' : v)
       }}
       disabled={disabled}
     >
-      <SelectTrigger className='w-full'>
+      <SelectTrigger ref={triggerRef} className='w-full'>
         <SelectValue placeholder={placeholder}>
           {selectValue === EMPTY ? '—' : value}
         </SelectValue>

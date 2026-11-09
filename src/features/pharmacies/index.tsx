@@ -1405,6 +1405,9 @@ export function Pharmacies() {
                     <div className='flex flex-col gap-2 sm:flex-row'>
                       <Input
                         id='pharmacy_address'
+                        // Off so picking a saved browser address here doesn't
+                        // autofill the rest of the form (see FormSelect).
+                        autoComplete='off'
                         value={form.pharmacy_address}
                         onChange={(e) =>
                           setField('pharmacy_address', e.target.value)
