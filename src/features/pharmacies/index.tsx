@@ -201,6 +201,7 @@ const REQUIRED_FIELDS: { key: keyof PharmacyFormValues; label: string }[] = [
   { key: 'pharmacy_type', label: 'Тип аптеки' },
   { key: 'status', label: 'Статус' },
   { key: 'marketing_staff', label: 'Мед. представитель' },
+  { key: 'pharmacy_address', label: 'Адрес аптеки' },
 ]
 
 const REQUIRED_KEYS = new Set(REQUIRED_FIELDS.map(({ key }) => key))
@@ -1391,8 +1392,16 @@ export function Pharmacies() {
                   <h3 className='text-sm font-semibold text-muted-foreground'>
                     Адрес
                   </h3>
-                  <div className='space-y-1.5'>
-                    <Label htmlFor='pharmacy_address'>Адрес аптеки</Label>
+                  <div
+                    className='space-y-1.5'
+                    {...fieldProps('pharmacy_address')}
+                  >
+                    <FieldLabel
+                      field='pharmacy_address'
+                      htmlFor='pharmacy_address'
+                    >
+                      Адрес аптеки
+                    </FieldLabel>
                     <div className='flex flex-col gap-2 sm:flex-row'>
                       <Input
                         id='pharmacy_address'
