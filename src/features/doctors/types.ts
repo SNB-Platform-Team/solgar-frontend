@@ -74,9 +74,8 @@ export interface DoctorDetail {
   clinic_address: string
   clinic_count: string | number | null
   // Адрес — street/homenumber/point_x/point_y/full_address/country_code/
-  // building_type can all be filled in either by hand or by "Найти адрес"
-  // (see DoctorGeocodeResponse); full_address doubles as the query text
-  // typed into that search.
+  // building_type are filled by "Найти адрес" (see DoctorGeocodeResponse),
+  // which geocodes the hand-typed clinic_address.
   country: string
   area: string
   region: string

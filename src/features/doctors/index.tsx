@@ -546,8 +546,9 @@ export function Doctors() {
     },
   })
 
-  // "Найти адрес" — sends whatever's typed into Полный адрес to DaData and
-  // fills in the coordinates + address components it resolves. Doesn't
+  // "Найти адрес" — sends the hand-typed Адрес клиники (left as typed) to the
+  // geocoder and fills Полный адрес (read-only)
+  // plus the coordinates + address components it resolves. Doesn't
   // touch anything outside the Адрес group (Область/Регион/Город above are
   // separate, filter-options-backed cascade fields; this doesn't try to
   // reconcile the two).
@@ -555,7 +556,7 @@ export function Doctors() {
     mutationFn: async () => {
       const res = await api.post<DoctorGeocodeResponse>(
         '/sales/api/doctor/geocode/',
-        { address: form.full_address }
+        { address: form.clinic_address }
       )
       return res.data
     },
@@ -708,8 +709,8 @@ export function Doctors() {
 
   const handleGeocode = () => {
     setFormNotice(null)
-    if (!form.full_address.trim()) {
-      setFormError('Введите адрес для поиска')
+    if (!form.clinic_address.trim()) {
+      setFormError('Введите «Адрес клиники» для поиска')
       return
     }
     setFormError(null)
@@ -1057,15 +1058,6 @@ export function Doctors() {
                         onChange={(e) => setField('clinic_tel', e.target.value)}
                       />
                     </div>
-                    <div className='space-y-1.5 lg:col-span-3'>
-                      <Label>Адрес клиники</Label>
-                      <Input
-                        value={form.clinic_address}
-                        onChange={(e) =>
-                          setField('clinic_address', e.target.value)
-                        }
-                      />
-                    </div>
                   </div>
                 </div>
 
@@ -1073,15 +1065,14 @@ export function Doctors() {
                   <h3 className='text-sm font-semibold text-muted-foreground'>
                     Адрес
                   </h3>
-                  <div className='space-y-1.5' {...fieldProps('full_address')}>
-                    <Label>
-                      Полный адрес <span className='text-destructive'>*</span>
-                    </Label>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='clinic_address'>Адрес клиники</Label>
                     <div className='flex flex-col gap-2 sm:flex-row'>
                       <Input
-                        value={form.full_address}
+                        id='clinic_address'
+                        value={form.clinic_address}
                         onChange={(e) =>
-                          setField('full_address', e.target.value)
+                          setField('clinic_address', e.target.value)
                         }
                         placeholder='Введите адрес клиники и нажмите «Найти адрес»'
                         className='flex-1'
@@ -1100,11 +1091,25 @@ export function Doctors() {
                       </Button>
                     </div>
                     <p className='text-xs text-muted-foreground'>
-                      Единственное редактируемое поле здесь. Заполняет Улицу,
-                      Дом, Город, Область, Регион, point_x/point_y, код страны и
-                      тип здания ниже по найденному адресу — эти поля недоступны
-                      для ручного ввода и берутся только из результата
-                      геокодирования.
+                      Адрес вводится вручную и сохраняется как есть. «Найти
+                      адрес» ищет его в Яндексе и заполняет поля ниже.
+                    </p>
+                  </div>
+                  <div className='space-y-1.5' {...fieldProps('full_address')}>
+                    <Label>
+                      Полный адрес <span className='text-destructive'>*</span>
+                    </Label>
+                    <Input
+                      value={form.full_address}
+                      readOnly
+                      tabIndex={-1}
+                      className='bg-muted'
+                    />
+                    <p className='text-xs text-muted-foreground'>
+                      Стандартизированный адрес из Яндекса — заполняется
+                      автоматически после «Найти адрес», вместе с Улицей, Домом,
+                      Городом, Областью, Регионом, point_x/point_y, кодом страны
+                      и типом здания.
                     </p>
                   </div>
                   <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>

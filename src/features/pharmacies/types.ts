@@ -94,7 +94,7 @@ export interface PharmacyDetail {
   comments: string
   pharmacy_address: string
   // Адрес — filled by "Найти адрес" (see PharmacyGeocodeResponse);
-  // full_address doubles as the query text typed into that search. The
+  // the search text is the hand-typed pharmacy_address. The
   // geocoder's own area names live in administrative_area_name/
   // sub_administrative_area_name — separate columns from the area/region
   // cascade dropdowns above, which geocoding never touches.
