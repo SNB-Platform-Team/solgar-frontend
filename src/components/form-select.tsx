@@ -45,15 +45,18 @@ export function FormSelect({
   //     field blank on the first row click when the list arrived late.
   // Blank and duplicate options are dropped — Radix rejects an empty item
   // value, and a repeated one would duplicate its React key.
-  const trimmed = (value ?? '').trim()
+  // The value and options can arrive as numbers (e.g. sku is an integer
+  // column server-side) or null — everything is compared as a string.
+  const strValue = String(value ?? '')
+  const trimmed = strValue.trim()
   const cleanOptions = Array.from(
-    new Set(options.filter((o) => (o ?? '').trim() !== ''))
+    new Set(options.map((o) => String(o ?? '')).filter((o) => o.trim() !== ''))
   )
   const allOptions =
-    trimmed !== '' && !cleanOptions.includes(value)
-      ? [value, ...cleanOptions]
+    trimmed !== '' && !cleanOptions.includes(strValue)
+      ? [strValue, ...cleanOptions]
       : cleanOptions
-  const selectValue = trimmed === '' ? EMPTY : value
+  const selectValue = trimmed === '' ? EMPTY : strValue
 
   // Inside a <form>, Radix also renders a hidden native <select>, and
   // anything that changes that one fires onValueChange too — the browser's
@@ -82,7 +85,7 @@ export function FormSelect({
     >
       <SelectTrigger ref={triggerRef} className='w-full'>
         <SelectValue placeholder={placeholder}>
-          {selectValue === EMPTY ? '—' : value}
+          {selectValue === EMPTY ? '—' : strValue}
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
