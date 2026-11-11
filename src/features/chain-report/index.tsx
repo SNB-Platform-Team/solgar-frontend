@@ -65,8 +65,8 @@ const DEFAULT_FILTERS: ChainSalesReportFilters = {
 }
 
 const STOCK_SALES_OPTIONS = [
-  { value: 'SALES', label: 'Продажи' },
-  { value: 'STOCK', label: 'Сток' },
+  { value: 'SALES', label: 'SALES' },
+  { value: 'STOCK', label: 'STOCK' },
 ]
 
 // yyyy-MM-dd in local time (toISOString would shift a day around midnight).
@@ -263,7 +263,7 @@ export function ChainReport() {
                 </div>
 
                 <div className='space-y-1.5'>
-                  <Label>Продажи / Сток</Label>
+                  <Label>SALES / STOCK</Label>
                   <Select
                     value={filters.stock_sales}
                     onValueChange={(v) => setFilter('stock_sales', v)}
