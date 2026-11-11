@@ -61,7 +61,13 @@ const DEFAULT_FILTERS: ChainSalesReportFilters = {
   product: '',
   begin: '',
   end: '',
+  stock_sales: 'SALES',
 }
+
+const STOCK_SALES_OPTIONS = [
+  { value: 'SALES', label: 'Продажи' },
+  { value: 'STOCK', label: 'Сток' },
+]
 
 // yyyy-MM-dd in local time (toISOString would shift a day around midnight).
 const toISODate = (d: Date) => {
@@ -124,6 +130,7 @@ export function ChainReport() {
     params.set('product', f.product)
     params.set('begin', f.begin)
     params.set('end', f.end)
+    params.set('stock_sales', f.stock_sales)
     return params
   }
 
@@ -249,6 +256,25 @@ export function ChainReport() {
                       {repTypes.map((rt) => (
                         <SelectItem key={rt.value} value={rt.value}>
                           {rt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className='space-y-1.5'>
+                  <Label>Продажи / Сток</Label>
+                  <Select
+                    value={filters.stock_sales}
+                    onValueChange={(v) => setFilter('stock_sales', v)}
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STOCK_SALES_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
                         </SelectItem>
                       ))}
                     </SelectContent>

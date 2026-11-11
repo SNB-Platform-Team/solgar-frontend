@@ -49,4 +49,6 @@ export interface ChainSalesReportFilters {
   product: string
   begin: string
   end: string
+  /** Продажи / Сток — SALES (default) or STOCK; same Кол-во/Сумма columns. */
+  stock_sales: string
 }
