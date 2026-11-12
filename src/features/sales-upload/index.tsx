@@ -49,24 +49,6 @@ import {
 
 const formatNumber = (n: number) => n.toLocaleString('ru-RU')
 
-// Multi-month workbooks keep one month per sheet, named in Russian. Only
-// those sheets are offered in Лист (месяц) — others ("солгар", "Остатки
-// склад", "Svodnaya", ...) aren't monthly sales data.
-const RU_MONTHS = [
-  'январь',
-  'февраль',
-  'март',
-  'апрель',
-  'май',
-  'июнь',
-  'июль',
-  'август',
-  'сентябрь',
-  'октябрь',
-  'ноябрь',
-  'декабрь',
-]
-
 const COLUMNS: { key: keyof SalesUploadRow; label: string }[] = [
   { key: 'index', label: '№' },
   { key: 'product', label: 'Продукт' },
@@ -133,12 +115,10 @@ export function SalesUpload() {
   const [validationError, setValidationError] = useState<string | null>(null)
   const [savedCount, setSavedCount] = useState<number | null>(null)
 
-  // Multi-month workbooks (one month per sheet: январь, февраль, ...) —
-  // the sheet list is fetched as soon as a file is picked and narrowed to
-  // the month-named sheets (see RU_MONTHS); the chosen one goes along with
-  // the preview request. Left empty when the file has no month sheets or
-  // the lookup fails — then no sheet_name is sent and the backend parses
-  // the first sheet, same as before.
+  // Multi-sheet workbooks — the sheet list is fetched as soon as a file is
+  // picked (every sheet, first one preselected); the chosen one goes along
+  // with the preview request. Left empty when the lookup fails — then no
+  // sheet_name is sent and the backend parses the first sheet.
   const [sheets, setSheets] = useState<string[]>([])
   const [selectedSheet, setSelectedSheet] = useState<string>('')
   // Only the latest file's sheet lookup may land — picking another file
@@ -160,11 +140,8 @@ export function SalesUpload() {
       )
       if (requestId !== sheetsRequestRef.current) return
       const list = res.data.error ? [] : (res.data.sheets ?? [])
-      const monthSheets = list.filter((s) =>
-        RU_MONTHS.includes(s.trim().toLowerCase())
-      )
-      setSheets(monthSheets)
-      setSelectedSheet(monthSheets[0] ?? '')
+      setSheets(list)
+      setSelectedSheet(list[0] ?? '')
     } catch {
       // Silently fall back to a plain (first-sheet) upload.
     }
@@ -448,7 +425,7 @@ export function SalesUpload() {
 
                 {sheets.length >= 1 && (
                   <div className='space-y-1.5'>
-                    <Label>Лист (месяц)</Label>
+                    <Label>Лист</Label>
                     <Select
                       value={selectedSheet}
                       onValueChange={setSelectedSheet}
