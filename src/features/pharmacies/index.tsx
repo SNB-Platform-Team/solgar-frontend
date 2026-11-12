@@ -1710,6 +1710,7 @@ export function Pharmacies() {
               key={`${editingBrand}-${editingId}`}
               brand={editingBrand}
               pharmacyId={editingId}
+              canAdd
               title={
                 [form.group_company, form.city].filter(Boolean).join(', ') ||
                 `ID ${editingId}`

@@ -91,9 +91,8 @@ interface PendingPhoto {
  * Render with a `key` per pharmacy so the form resets when another one is
  * opened.
  *
- * The add section (Промо/Подтип/Размер/photos/Добавить) is off for now —
- * Оборудование isn't ready — so the panel only lists rows; pass `canAdd` to
- * bring it back.
+ * The add section (Промо/Подтип/Размер/photos/Добавить) only shows with
+ * `canAdd` — without it the panel just lists rows.
  *
  * Its Промо/Подтип are its own state on purpose: the card's fields of the
  * same name are saved by Обновить (into promo/comments), and adding a row
@@ -109,7 +108,7 @@ export function PharmacyHardware({
   pharmacyId: string | number
   /** Which pharmacy this is, for the heading. */
   title: string
-  /** Show the add-equipment section (off until Оборудование is ready). */
+  /** Show the add-equipment section. */
   canAdd?: boolean
 }) {
   const queryClient = useQueryClient()
