@@ -198,9 +198,16 @@ export const PROMO_CATALOG: PromoCategory[] = [
 /** Promo kodlari (dropdown 1) */
 export const PROMO_CODES = PROMO_CATALOG.map((c) => c.code)
 
+// The backend's Промо list (equipment/meta) spells two codes differently.
+const CODE_ALIASES: Record<string, string> = {
+  'РОЛЛ-АП': 'РОЛЛ_АПП',
+  '3Д БАНКА': '3D БАНКА',
+}
+
 /** Bir promo kodunun alt tipleri (dropdown 2) */
 export function subtypesFor(code: string): PromoSubtype[] {
-  return PROMO_CATALOG.find((c) => c.code === code)?.subtypes ?? []
+  const key = CODE_ALIASES[code] ?? code
+  return PROMO_CATALOG.find((c) => c.code === key)?.subtypes ?? []
 }
 
 /** Bir promo kodunun fotolu alt tipleri (galeri) */

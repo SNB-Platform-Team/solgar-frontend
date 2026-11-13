@@ -156,6 +156,8 @@ export interface PharmacyHardwareRow {
   /** Empty on legacy rows: corner_info holds no Промо name. */
   promo: string
   subtype: string
+  /** The POS имидж picked for a must-have Промо ('' / absent otherwise). */
+  imidzh?: string
   /** e.g. 180x30x20 — formatted from width/length/depth on legacy rows. */
   size?: string
   photos?: PharmacyHardwarePhoto[]
@@ -173,6 +175,15 @@ export interface PharmacyCornerLogResponse {
   pharmacy_id: string | number | null
   rows: PharmacyHardwareRow[]
   error?: string
+}
+
+/** Shape of GET /sales/api/pharmacy/equipment/meta/ — the Промо list (with
+ * whether each needs a POS имидж) and the имидж names for the user's brand,
+ * which the backend takes from the user's email domain. */
+export interface PharmacyEquipmentMeta {
+  brand: string
+  promos: { name: string; requires_imidzh: boolean }[]
+  imidzh: string[]
 }
 
 /** Shape of POST /sales/api/pharmacy/equipment/save/ — the created row. */

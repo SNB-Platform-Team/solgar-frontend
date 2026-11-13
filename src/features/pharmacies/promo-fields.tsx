@@ -22,9 +22,12 @@ export function PromoFields({
   subtype,
   onPromoChange,
   onSubtypeChange,
+  promoOptions = PROMO_CODES,
 }: {
   promo: string
   subtype: string
+  /** Промо choices — the catalog's codes unless given. */
+  promoOptions?: string[]
   onPromoChange: (value: string) => void
   onSubtypeChange: (value: string) => void
 }) {
@@ -39,7 +42,7 @@ export function PromoFields({
         <Label>Промо</Label>
         <FormSelect
           value={promo}
-          options={PROMO_CODES}
+          options={promoOptions}
           onChange={onPromoChange}
         />
       </div>

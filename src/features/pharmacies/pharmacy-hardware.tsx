@@ -3,6 +3,7 @@ import { AxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Plus, Trash2, X } from 'lucide-react'
 import { api } from '@/lib/api'
+import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,11 +24,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { subtypesFor } from './promo-catalog'
+import { posImageUrl } from './pos-images'
+import { PROMO_CODES, subtypesFor } from './promo-catalog'
 import { PromoFields } from './promo-fields'
 import {
   type PharmacyCornerLogResponse,
   type PharmacyEquipmentDeleteResponse,
+  type PharmacyEquipmentMeta,
   type PharmacyEquipmentSaveResponse,
   type PharmacyHardwarePhoto,
   type PharmacyHardwareRow,
@@ -115,6 +118,7 @@ export function PharmacyHardware({
   const [selectedPromo, setSelectedPromo] = useState('')
   const [selectedSubtype, setSelectedSubtype] = useState('')
   const [selectedSize, setSelectedSize] = useState('')
+  const [selectedImidzh, setSelectedImidzh] = useState('')
   const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([])
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -149,6 +153,25 @@ export function PharmacyHardware({
 
   const rows = data?.rows ?? []
 
+  // Промо list + which Промо need a POS имидж + the имидж names for the
+  // user's brand. Until it answers (or if it fails) the catalog's Промо are
+  // offered and no имидж is asked for — the backend still enforces it.
+  const { data: meta } = useQuery<PharmacyEquipmentMeta>({
+    queryKey: ['pharmacy-equipment-meta'],
+    queryFn: async () => {
+      const res = await api.get<PharmacyEquipmentMeta>(
+        '/sales/api/pharmacy/equipment/meta/'
+      )
+      return res.data
+    },
+    enabled: canAdd,
+    staleTime: Infinity,
+  })
+  const promoOptions = meta?.promos.map((p) => p.name) ?? PROMO_CODES
+  const requiresImidzh = Boolean(
+    meta?.promos.find((p) => p.name === selectedPromo)?.requires_imidzh
+  )
+
   // Saved and deleted rows are written into the cached list rather than
   // refetched, so the table changes the moment the request succeeds.
   const updateRows = (
@@ -166,6 +189,7 @@ export function PharmacyHardware({
       body.append('promo', selectedPromo)
       body.append('subtype', selectedSubtype)
       body.append('size', selectedSize.trim())
+      if (requiresImidzh) body.append('imidzh', selectedImidzh)
       pendingPhotos.forEach(({ file }) => body.append('photos', file))
       const res = await api.post<PharmacyEquipmentSaveResponse>(
         '/sales/api/pharmacy/equipment/save/',
@@ -186,6 +210,7 @@ export function PharmacyHardware({
       setSelectedPromo('')
       setSelectedSubtype('')
       setSelectedSize('')
+      setSelectedImidzh('')
     },
     onError: (err) =>
       setNotice(backendError(err, 'Не удалось сохранить оборудование')),
@@ -268,6 +293,7 @@ export function PharmacyHardware({
                   <TableHead className='h-8 font-semibold'>Промо</TableHead>
                   <TableHead className='h-8 font-semibold'>Подтип</TableHead>
                   <TableHead className='h-8 font-semibold'>Размер</TableHead>
+                  <TableHead className='h-8 font-semibold'>Имидж</TableHead>
                   <TableHead className='h-8 font-semibold'>Статус</TableHead>
                   <TableHead className='h-8 font-semibold'>
                     Статус оборудования
@@ -293,6 +319,9 @@ export function PharmacyHardware({
                       </TableCell>
                       <TableCell className='py-1.5'>
                         {row.size || '—'}
+                      </TableCell>
+                      <TableCell className='py-1.5'>
+                        {row.imidzh || '—'}
                       </TableCell>
                       <TableCell className='py-1.5'>
                         <Badge
@@ -354,10 +383,12 @@ export function PharmacyHardware({
             <PromoFields
               promo={selectedPromo}
               subtype={selectedSubtype}
+              promoOptions={promoOptions}
               onPromoChange={(v) => {
                 setSelectedPromo(v)
                 setSelectedSubtype('')
                 setSelectedSize('')
+                setSelectedImidzh('')
               }}
               onSubtypeChange={handleSubtypeChange}
             />
@@ -371,6 +402,15 @@ export function PharmacyHardware({
                 placeholder='180*30*20'
               />
             </div>
+            {requiresImidzh && (
+              <ImidzhPicker
+                brand={meta?.brand ?? ''}
+                names={meta?.imidzh ?? []}
+                value={selectedImidzh}
+                onChange={setSelectedImidzh}
+                disabled={saving}
+              />
+            )}
             <div className='space-y-1.5 sm:col-span-2'>
               <Label htmlFor='hardware-photos'>Фото с места установки</Label>
               <Input
@@ -409,7 +449,12 @@ export function PharmacyHardware({
                 type='button'
                 variant='outline'
                 onClick={handleAdd}
-                disabled={!selectedPromo || !selectedSubtype || saving}
+                disabled={
+                  !selectedPromo ||
+                  !selectedSubtype ||
+                  (requiresImidzh && !selectedImidzh) ||
+                  saving
+                }
               >
                 {saving ? (
                   <Loader2 className='size-4 animate-spin' />
@@ -425,6 +470,70 @@ export function PharmacyHardware({
         {notice && <p className='text-sm text-destructive'>{notice}</p>}
       </CardContent>
     </Card>
+  )
+}
+
+// «Имидж» for a must-have Промо: one POS image per card (image + name),
+// single select. A name with no file — or whose file fails to load — is a
+// text-only chip instead.
+function ImidzhPicker({
+  brand,
+  names,
+  value,
+  onChange,
+  disabled,
+}: {
+  brand: string
+  names: string[]
+  value: string
+  onChange: (name: string) => void
+  disabled?: boolean
+}) {
+  const [broken, setBroken] = useState<Set<string>>(() => new Set())
+  return (
+    <div className='space-y-1.5 sm:col-span-2 lg:col-span-3'>
+      <Label>
+        Имидж <span className='text-destructive'>*</span>
+      </Label>
+      {names.length === 0 ? (
+        <p className='text-sm text-muted-foreground'>
+          Нет имиджей для вашего бренда
+        </p>
+      ) : (
+        <div className='flex flex-wrap gap-2' role='radiogroup'>
+          {names.map((name) => {
+            const url = broken.has(name) ? null : posImageUrl(brand, name)
+            const selected = value === name
+            return (
+              <button
+                key={name}
+                type='button'
+                role='radio'
+                aria-checked={selected}
+                disabled={disabled}
+                onClick={() => onChange(name)}
+                className={cn(
+                  'rounded-md border text-start text-xs transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50',
+                  url ? 'w-32 overflow-hidden' : 'px-3 py-2',
+                  selected && 'border-primary ring-2 ring-primary'
+                )}
+              >
+                {url && (
+                  <img
+                    src={url}
+                    alt=''
+                    loading='lazy'
+                    className='aspect-[3/4] w-full bg-muted object-cover'
+                    onError={() => setBroken((prev) => new Set(prev).add(name))}
+                  />
+                )}
+                <span className={cn('block', url && 'p-1.5')}>{name}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 
