@@ -217,6 +217,9 @@ export function subtypesFor(code: string): PromoSubtype[] {
  * value is the `promo` that API expects (prm_pos_classification.marketing). */
 const API_SUBTYPE_PROMOS: Record<string, string> = {
   СТОЙКИ: 'Стойка',
+  '3Д БАНКА': '3Д Банка',
+  // the catalog's spelling, offered if equipment/meta hasn't answered
+  '3D БАНКА': '3Д Банка',
 }
 
 export function isPhotoOnlyPromo(code: string): boolean {
@@ -237,15 +240,28 @@ const normName = (s: string) =>
     .replace(/\s+/g, ' ')
     .trim()
 
-/** The frontend photo for a Подтип name (as the backend spells it), looked
- * up among this Промо's catalog entries — undefined if none matches. */
+// Photos for API-backed Подтип with no catalog photo, served from
+// public/promo_images/ — keyed by normName(Подтип). 3Д Банка's single
+// Подтип is spelled per brand: SL «3D банка» (Latin D), BN «3Д Банка».
+const PUBLIC_PROMO_PHOTOS: Record<string, string> = {
+  '3d банка': '3d-banka-sl.jpg',
+  '3д банка': '3d-banka-bn.jpg',
+}
+
+/** The frontend photo for a Подтип name (as the backend spells it): this
+ * Промо's catalog entries first, then public/promo_images/ — undefined if
+ * none matches (the gallery then shows the name, and «Нет фото»). */
 export function photoForSubtype(
   code: string,
   name: string
 ): string | undefined {
   const key = normName(name)
-  return subtypesFor(code).find((s) => s.photo && normName(s.name) === key)
-    ?.photo
+  const fromCatalog = subtypesFor(code).find(
+    (s) => s.photo && normName(s.name) === key
+  )?.photo
+  if (fromCatalog) return fromCatalog
+  const file = PUBLIC_PROMO_PHOTOS[key]
+  return file ? `${import.meta.env.BASE_URL}promo_images/${file}` : undefined
 }
 
 /** Bir promo kodunun fotolu alt tipleri (galeri) */
