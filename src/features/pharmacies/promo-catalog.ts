@@ -7,21 +7,8 @@
 // Akis: Промо sec -> подтип (subtype) dropdown dolar -> "Выбрать фото"
 // butonu galeriyi acar -> secilen foto subtype + boyut + marka'yi doldurur.
 //
-// Fotolar: src/assets/promo/ altinda. Sadece СТОЙКИ (stand) ve КОРНЕР icin
-// demo fotolar var; digerlerinde photo alani undefined (galeri butonu gizli).
-import korner1 from '@/assets/promo/korner-1.jpg'
-import korner2 from '@/assets/promo/korner-2.jpg'
-import stoykaBauntiBelaya from '@/assets/promo/stoyka-baunti-belaya-zakrytaya.jpg'
-import stoykaBauntiZelenayaOtk from '@/assets/promo/stoyka-baunti-zelenaya-otkrytaya.jpg'
-import stoykaBauntiZelenayaZak from '@/assets/promo/stoyka-baunti-zelenaya-zakrytaya.jpg'
-import stoykaElochka from '@/assets/promo/stoyka-elochka.jpg'
-import stoykaOtkrytayaShirokaya from '@/assets/promo/stoyka-otkrytaya-shirokaya-seraya.jpg'
-import stoykaStarayaOtk from '@/assets/promo/stoyka-staraya-otkrytaya.jpg'
-import stoykaStarayaPolovina from '@/assets/promo/stoyka-staraya-polovina-otkrytaya.jpg'
-import stoykaShirokayaSeraya from '@/assets/promo/stoyka-zakrytaya-shirokaya-seraya.jpg'
-import stoykaBelaya from '@/assets/promo/stoyka-zakrytaya-uzkaya-belaya.jpg'
-import stoykaKorichnevaya from '@/assets/promo/stoyka-zakrytaya-uzkaya-korichnevaya.jpg'
-import stoykaSeraya from '@/assets/promo/stoyka-zakrytaya-uzkaya-seraya.jpg'
+// Fotolar: СТОЙКИ / КОРНЕР / 3Д БАНКА подтип'leri backend API'den gelir,
+// fotolari public/promo_images/ altinda (PUBLIC_PROMO_PHOTOS, asagida).
 
 export interface PromoSubtype {
   /** Медицинские представители kolonundaki ad — DB'de sku'ya yazilir */
@@ -48,67 +35,56 @@ export const PROMO_CATALOG: PromoCategory[] = [
         name: 'Стойка закрытая узкая коричневая',
         brand: 'SOLGAR',
         size: '210х75х37',
-        photo: stoykaKorichnevaya,
       },
       {
         name: 'Стойка закрытая узкая белая',
         brand: 'SOLGAR',
         size: '210х75х37',
-        photo: stoykaBelaya,
       },
       {
         name: 'Стойка закрытая узкая серая',
         brand: 'SOLGAR',
         size: '190х60х40',
-        photo: stoykaSeraya,
       },
       {
         name: 'Стойка закрытая широкая серая',
         brand: 'SOLGAR',
         size: '190х76х40',
-        photo: stoykaShirokayaSeraya,
       },
       {
         name: 'Стойка открытая широкая серая',
         brand: 'SOLGAR',
         size: '185х74х40',
-        photo: stoykaOtkrytayaShirokaya,
       },
       {
         name: 'Стойка Баунти белая закрытая',
         brand: "NATURE'S BOUNTY",
         size: '180х45х30',
-        photo: stoykaBauntiBelaya,
       },
       {
         name: 'Стойка Баунти зеленая закрытая',
         brand: "NATURE'S BOUNTY",
         size: '180х45х30',
-        photo: stoykaBauntiZelenayaZak,
       },
       {
         name: 'Стойка Баунти зеленая открытая',
         brand: "NATURE'S BOUNTY",
         size: '180х45х30',
-        photo: stoykaBauntiZelenayaOtk,
       },
       {
         name: 'Стойка старая открытая',
         brand: 'SOLGAR',
         size: '30х46х175',
-        photo: stoykaStarayaOtk,
       },
       {
         name: 'Стойка старая половина открытая',
         brand: 'SOLGAR',
         size: '—',
-        photo: stoykaStarayaPolovina,
       },
       {
         name: 'Стойка ёлочка',
         brand: 'SOLGAR',
         size: '60x40x40',
-        photo: stoykaElochka,
       },
     ],
   },
@@ -119,13 +95,11 @@ export const PROMO_CATALOG: PromoCategory[] = [
         name: 'Корнер',
         brand: 'SOLGAR',
         size: 'Индивидуальный размер',
-        photo: korner1,
       },
       {
         name: 'Корнер (вариант 2)',
         brand: 'SOLGAR',
         size: 'Индивидуальный размер',
-        photo: korner2,
       },
     ],
   },
@@ -217,9 +191,20 @@ export function subtypesFor(code: string): PromoSubtype[] {
  * value is the `promo` that API expects (prm_pos_classification.marketing). */
 const API_SUBTYPE_PROMOS: Record<string, string> = {
   СТОЙКИ: 'Стойка',
+  КОРНЕР: 'Корнер',
   '3Д БАНКА': '3Д Банка',
-  // the catalog's spelling, offered if equipment/meta hasn't answered
+  КАТАЛОЖНИЦА: 'Каталожница',
+  КОВРИК: 'Брендированный коврик',
+  ПУФИК: 'Брендированный пуфик',
+  ЛАЙТБОКС: 'Лайтбокс',
+  'ОСВЕЩЕНИЕ ВЫКЛАДКИ': 'Освещение выкладки',
+  'АНТИКРАЖНЫЕ ВОРОТА': 'Антикражные ворота',
+  ПЛАКАТ: 'Плакат',
+  'РОЛЛ-АП': 'Ролл-ап',
+  ХАРДПОСТЕР: 'Хардпостер',
+  // the catalog's spellings, offered if equipment/meta hasn't answered
   '3D БАНКА': '3Д Банка',
+  РОЛЛ_АПП: 'Ролл-ап',
 }
 
 export function isPhotoOnlyPromo(code: string): boolean {
@@ -240,27 +225,80 @@ const normName = (s: string) =>
     .replace(/\s+/g, ' ')
     .trim()
 
-// Photos for API-backed Подтип with no catalog photo, served from
-// public/promo_images/ — keyed by normName(Подтип). 3Д Банка's single
-// Подтип is spelled per brand: SL «3D банка» (Latin D), BN «3Д Банка».
-const PUBLIC_PROMO_PHOTOS: Record<string, string> = {
+// Photos for the API-backed Подтип, served from public/promo_images/ —
+// keyed by normName(Подтип). A value is one file, or one per brand when both
+// brands share the Подтип name (Корнер). 3Д Банка's single Подтип is spelled
+// per brand instead: SL «3D банка» (Latin D), BN «3Д Банка».
+// A brand with no file (e.g. Хардпостер маленький for BOUNTY) → «Нет фото».
+type PhotoFile = string | { SL?: string; BN?: string }
+const PUBLIC_PROMO_PHOTOS: Record<string, PhotoFile> = {
+  'стойка елочка': 'stoyka-elochka.jpg',
+  'стойка закрытая узкая белая': 'stoyka-zakrytaya-uzkaya-belaya.jpg',
+  'стойка закрытая узкая коричневая':
+    'stoyka-zakrytaya-uzkaya-korichnevaya.jpg',
+  'стойка закрытая узкая серая': 'stoyka-zakrytaya-uzkaya-seraya.jpg',
+  'стойка закрытая широкая серая': 'stoyka-zakrytaya-shirokaya-seraya.jpg',
+  'стойка открытая широкая серая': 'stoyka-otkrytaya-shirokaya-seraya.jpg',
+  'стойка старая открытая': 'stoyka-staraya-otkrytaya.jpg',
+  'стойка старая половина открытая': 'stoyka-staraya-polovina-otkrytaya.jpg',
+  'стойка баунти белая закрытая': 'stoyka-baunti-belaya-zakrytaya.jpg',
+  'стойка баунти зеленая закрытая': 'stoyka-baunti-zelenaya-zakrytaya.jpg',
+  'стойка баунти зеленая открытая': 'stoyka-baunti-zelenaya-otkrytaya.jpg',
+  корнер: { SL: 'korner-sl.jpg', BN: 'korner-bn.jpg' },
   '3d банка': '3d-banka-sl.jpg',
   '3д банка': '3d-banka-bn.jpg',
+  каталожница: { SL: 'katalozhnitsa-sl.jpg', BN: 'katalozhnitsa-bn.jpg' },
+  'брендированный коврик квадратный': 'kovrik-kvadratnyj.jpg',
+  'брендированный коврик прямоугольный': 'kovrik-pryamougolnyj.jpg',
+  лайтбокс: { SL: 'lajtboks-sl.jpg', BN: 'lajtboks-bn.jpg' },
+  'освещение выкладки': {
+    SL: 'osveshchenie-vykladki-sl.jpg',
+    BN: 'osveshchenie-vykladki-bn.jpg',
+  },
+  'брендированный пуфик': 'pufik-sl.jpg',
+  'антикражные ворота наклейка': {
+    SL: 'antikrazhnye-vorota-naklejka-sl.jpg',
+    BN: 'antikrazhnye-vorota-naklejka-bn.jpg',
+  },
+  'антикражные ворота картон': {
+    SL: 'antikrazhnye-vorota-karton-sl.jpg',
+    BN: 'antikrazhnye-vorota-karton-bn.jpg',
+  },
+  'плакат наклейка': {
+    SL: 'plakat-naklejka-sl.jpg',
+    BN: 'plakat-naklejka-bn.jpg',
+  },
+  'плакат в рамке': {
+    SL: 'plakat-v-ramke-sl.jpg',
+    BN: 'plakat-v-ramke-bn.jpg',
+  },
+  'ролл-ап узкий': { SL: 'roll-ap-uzkij-sl.jpg', BN: 'roll-ap-uzkij-bn.jpg' },
+  'ролл-ап широкий': {
+    SL: 'roll-ap-shirokij-sl.jpg',
+    BN: 'roll-ap-shirokij-bn.jpg',
+  },
+  'хардпостер большой': {
+    SL: 'hardposter-bolshoj-sl.jpg',
+    BN: 'hardposter-bolshoj-bn.jpg',
+  },
+  'хардпостер маленький': { SL: 'hardposter-malenkij-sl.jpg' },
 }
 
-/** The frontend photo for a Подтип name (as the backend spells it): this
- * Промо's catalog entries first, then public/promo_images/ — undefined if
+/** The photo (public/promo_images/) for a Подтип name as the backend spells
+ * it, for the user's brand (equipment API's SOLGAR / BOUNTY) — undefined if
  * none matches (the gallery then shows the name, and «Нет фото»). */
 export function photoForSubtype(
-  code: string,
-  name: string
+  name: string,
+  brand: string
 ): string | undefined {
-  const key = normName(name)
-  const fromCatalog = subtypesFor(code).find(
-    (s) => s.photo && normName(s.name) === key
-  )?.photo
-  if (fromCatalog) return fromCatalog
-  const file = PUBLIC_PROMO_PHOTOS[key]
+  const entry = PUBLIC_PROMO_PHOTOS[normName(name)]
+  if (!entry) return undefined
+  const file =
+    typeof entry === 'string'
+      ? entry
+      : brand.toUpperCase().includes('BOUNTY')
+        ? entry.BN
+        : entry.SL
   return file ? `${import.meta.env.BASE_URL}promo_images/${file}` : undefined
 }
 

@@ -197,7 +197,7 @@ export function PharmacyHardware({
     name: s.podtip,
     brand: subtypesQuery.data?.brand ?? '',
     size: s.razmer,
-    photo: photoForSubtype(selectedPromo, s.podtip),
+    photo: photoForSubtype(s.podtip, subtypesQuery.data?.brand ?? ''),
   }))
   const requiresImidzh = Boolean(
     meta?.promos.find((p) => p.name === selectedPromo)?.requires_imidzh
@@ -444,7 +444,9 @@ export function PharmacyHardware({
                 placeholder={isPhotoOnlyPromo(selectedPromo) ? '' : '180*30*20'}
               />
             </div>
-            {requiresImidzh && (
+            {/* Must-have Промо: the POS имидж opens once a Подтип is
+                picked, and both are required for Добавить. */}
+            {requiresImidzh && selectedSubtype && (
               <ImidzhPicker
                 brand={meta?.brand ?? ''}
                 names={meta?.imidzh ?? []}
