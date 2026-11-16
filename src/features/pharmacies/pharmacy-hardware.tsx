@@ -456,7 +456,10 @@ export function PharmacyHardware({
               />
             )}
             <div className='space-y-1.5 sm:col-span-2'>
-              <Label htmlFor='hardware-photos'>Фото с места установки</Label>
+              <Label htmlFor='hardware-photos'>
+                Фото с места установки{' '}
+                <span className='text-destructive'>*</span>
+              </Label>
               <Input
                 id='hardware-photos'
                 type='file'
@@ -497,6 +500,8 @@ export function PharmacyHardware({
                   !selectedPromo ||
                   !selectedSubtype ||
                   (requiresImidzh && !selectedImidzh) ||
+                  // at least one installation photo, for every Промо
+                  pendingPhotos.length === 0 ||
                   saving
                 }
               >
