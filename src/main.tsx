@@ -1,3 +1,5 @@
+// i18n first — every component's useTranslation() needs it initialised.
+import '@/lib/i18n'
 import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 import { AxiosError } from 'axios'

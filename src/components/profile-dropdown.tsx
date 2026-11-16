@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { useAuthUser } from '@/lib/auth'
 import { getDisplayNameInitials } from '@/lib/utils'
 import useDialogState from '@/hooks/use-dialog-state'
@@ -14,12 +15,14 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { LanguageSubMenu } from '@/components/language-switch'
 import { SignOutDialog } from '@/components/sign-out-dialog'
 
 export function ProfileDropdown() {
   const [open, setOpen] = useDialogState()
   const me = useAuthUser()
-  const name = me?.display_name ?? 'Пользователь'
+  const { t } = useTranslation()
+  const name = me?.display_name ?? t('user.fallbackName')
   const username = me?.username ?? ''
 
   return (
@@ -46,20 +49,21 @@ export function ProfileDropdown() {
           <DropdownMenuGroup>
             <DropdownMenuItem asChild>
               <Link to='/settings'>
-                Профиль
+                {t('user.profile')}
                 <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link to='/settings/notifications'>
-                Уведомления
+                {t('user.notifications')}
                 <DropdownMenuShortcut>⌘N</DropdownMenuShortcut>
               </Link>
             </DropdownMenuItem>
+            <LanguageSubMenu />
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant='destructive' onClick={() => setOpen(true)}>
-            Выйти
+            {t('user.signOut')}
             <DropdownMenuShortcut className='text-current'>
               ⇧⌘Q
             </DropdownMenuShortcut>

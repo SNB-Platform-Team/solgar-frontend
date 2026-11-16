@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import {
   AlertCircle,
   CheckCircle2,
@@ -229,6 +230,9 @@ function missingFieldsError(form: DoctorFormValues): string | null {
 const route = getRouteApi('/_authenticated/doctors/')
 
 export function Doctors() {
+  // i18n pilot (phase 1): only the form's Добавить/Сохранить and the delete
+  // dialog's buttons use t() — the rest of the page is still Russian.
+  const { t } = useTranslation()
   const search = route.useSearch()
   const navigate = route.useNavigate()
   const queryClient = useQueryClient()
@@ -423,12 +427,13 @@ export function Doctors() {
   // same rule the filter panel's Страна already follows.
   const formCountry = locked ? countryLock.userCountry : form.country
 
-  // Same idea for the form's Мед. представитель: a non-staff user is a
-  // medrep and only ever files doctors under their own name (me.medrep_name,
-  // possibly '' until IT maps them — the field then stays empty but still
-  // locked). Staff pick freely. Locked too while /me/ is still loading.
+  // Same idea for the form's Мед. представитель: a medrep only ever files
+  // doctors under their own name. Who is a medrep is decided by
+  // me.medrep_name, not is_staff — the backend fills it only for real field
+  // reps, so territorial managers get '' and pick freely. Locked while /me/
+  // is still loading.
   const meQuery = useQuery(authMeQueryOptions)
-  const medrepLocked = meQuery.data?.is_staff === false
+  const medrepLocked = Boolean(meQuery.data?.medrep_name)
   const medrepDisabled = medrepLocked || meQuery.isLoading
   const formMedrep = medrepLocked
     ? (meQuery.data?.medrep_name ?? '')
@@ -1264,7 +1269,7 @@ export function Doctors() {
                   Обновить
                 </Button>
                 <Button type='submit' disabled={isEditing || formBusy}>
-                  Добавить
+                  {t('common.add')}
                 </Button>
                 <Button
                   type='button'
@@ -1272,7 +1277,7 @@ export function Doctors() {
                   disabled={pendingRows.length === 0 || formBusy}
                 >
                   {bulkSaveMutation.isPending && <BrandSpinner size={16} />}
-                  Сохранить ({pendingRows.length})
+                  {t('common.save')} ({pendingRows.length})
                 </Button>
               </div>
             </form>
@@ -1347,8 +1352,8 @@ export function Doctors() {
               отменить.
             </>
           }
-          confirmText='Удалить'
-          cancelBtnText='Отмена'
+          confirmText={t('common.delete')}
+          cancelBtnText={t('common.cancel')}
         />
 
         <Card>

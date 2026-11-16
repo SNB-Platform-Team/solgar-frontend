@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useAuthUser } from '@/lib/auth'
 import { canAccessScreen } from '@/lib/screens'
 import { sidebarData } from './data/sidebar-data'
@@ -44,14 +45,35 @@ export function filterNavItems(
   })
 }
 
-/** The sidebar's nav groups, narrowed to the screens this user may open. */
+/** Swaps every `title` for its translation (by `titleKey`), at any depth. */
+function translateNavItems(
+  items: NavItem[],
+  t: (key: string, fallback: string) => string
+): NavItem[] {
+  return items.map((item) => {
+    const title = item.titleKey ? t(item.titleKey, item.title) : item.title
+    return item.items
+      ? { ...item, title, items: translateNavItems(item.items, t) }
+      : { ...item, title }
+  })
+}
+
+/** The sidebar's nav groups, narrowed to the screens this user may open,
+ * with titles in the current UI language. */
 export function useVisibleNavGroups(): NavGroup[] {
   const me = useAuthUser()
+  const { t } = useTranslation()
+  const tr = (key: string, fallback: string) =>
+    t(key, { defaultValue: fallback })
   return sidebarData.navGroups
     .map((group) => ({
       ...group,
-      items: filterNavItems(group.items, (item) =>
-        canAccessScreen(me, item.screen)
+      title: group.titleKey ? tr(group.titleKey, group.title) : group.title,
+      items: translateNavItems(
+        filterNavItems(group.items, (item) =>
+          canAccessScreen(me, item.screen)
+        ),
+        tr
       ),
     }))
     .filter((group) => group.items.length > 0)

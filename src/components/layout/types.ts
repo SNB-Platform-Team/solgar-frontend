@@ -14,6 +14,8 @@ type Team = {
 
 type BaseNavItem = {
   title: string
+  /** i18n key (locales/*.json) for `title` — `title` is the fallback. */
+  titleKey?: string
   badge?: string
   icon?: React.ElementType
 }
@@ -41,6 +43,7 @@ type NavItem = NavCollapsible | NavLink
 
 type NavGroup = {
   title: string
+  titleKey?: string
   items: NavItem[]
 }
 

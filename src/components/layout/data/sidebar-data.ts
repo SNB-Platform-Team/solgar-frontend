@@ -41,19 +41,23 @@ export const sidebarData: SidebarData = {
   navGroups: [
     {
       title: 'Меню',
+      titleKey: 'nav.menu',
       items: [
         {
           title: 'Главная',
+          titleKey: 'nav.dashboard',
           url: '/',
           // No screen code — Главная is shown to every signed-in user.
           icon: LayoutDashboard,
         },
         {
           title: 'Организация',
+          titleKey: 'nav.organization',
           icon: Building,
           items: [
             {
               title: 'Сотрудники',
+              titleKey: 'nav.employees',
               url: '/employees',
               screen: SCREENS.EMPLOYEES,
               icon: Users,
@@ -62,32 +66,38 @@ export const sidebarData: SidebarData = {
         },
         {
           title: 'Solgar Intern',
+          titleKey: 'nav.solgarIntern',
           icon: Package,
           items: [
             {
               title: 'Продаж&Сток',
+              titleKey: 'nav.salesStock',
               icon: FileBarChart,
               items: [
                 {
                   title: 'Аптечной Сети Ввод Продаж&Сток',
+                  titleKey: 'nav.chainSalesUpload',
                   url: '/sales-upload',
                   screen: SCREENS.SALES_UPLOAD,
                   icon: Upload,
                 },
                 {
                   title: 'Аптечной Сети Просмотр Продаж&Сток',
+                  titleKey: 'nav.chainSalesReport',
                   url: '/chain-report',
                   screen: SCREENS.CHAIN_REPORT,
                   icon: BarChart,
                 },
                 {
                   title: 'Дистрибьютор Ввод Продаж&Сток',
+                  titleKey: 'nav.distributorUpload',
                   url: '/distributor-upload',
                   screen: SCREENS.DIST_UPLOAD,
                   icon: Truck,
                 },
                 {
                   title: 'Дистрибьютор Просмотр Продаж&Сток',
+                  titleKey: 'nav.distributorReport',
                   url: '/sales-obs',
                   screen: SCREENS.SALES_OBS,
                   icon: TrendingUp,
@@ -96,16 +106,19 @@ export const sidebarData: SidebarData = {
             },
             {
               title: 'Аптек&Врач',
+              titleKey: 'nav.pharmacyDoctor',
               icon: Table2,
               items: [
                 {
                   title: 'Аптек Управление Данными',
+                  titleKey: 'nav.pharmacies',
                   url: '/pharmacies',
                   screen: SCREENS.PHARMACY,
                   icon: Store,
                 },
                 {
                   title: 'Врач Управление Данными',
+                  titleKey: 'nav.doctors',
                   url: '/doctors',
                   screen: SCREENS.DOCTOR,
                   icon: Stethoscope,
@@ -114,16 +127,19 @@ export const sidebarData: SidebarData = {
             },
             {
               title: 'Просмотр Отчетов',
+              titleKey: 'nav.reports',
               icon: Settings2,
               items: [
                 {
                   title: 'Аптек Сводный Обзор',
+                  titleKey: 'nav.pharmacyOverview',
                   url: '/pharm-managerial',
                   screen: SCREENS.PHARM_MGR,
                   icon: Building2,
                 },
                 {
                   title: 'Врач Сводный Обзор',
+                  titleKey: 'nav.doctorOverview',
                   url: '/doctor-managerial',
                   screen: SCREENS.DOCTOR_MGR,
                   icon: ClipboardList,
@@ -134,10 +150,12 @@ export const sidebarData: SidebarData = {
         },
         {
           title: '1C',
+          titleKey: 'nav.onec',
           icon: Database,
           items: [
             {
               title: '1C - Склад',
+              titleKey: 'nav.onecStock',
               url: '/onec-stock',
               screen: SCREENS.ONEC_STOCK,
               icon: Warehouse,
@@ -146,26 +164,31 @@ export const sidebarData: SidebarData = {
         },
         {
           title: 'Аналитика',
+          titleKey: 'nav.analytics',
           icon: PieChart,
           items: [
             {
               title: 'Аналитика 1C',
+              titleKey: 'nav.analytics1c',
               icon: LineChart,
               items: [
                 {
                   title: 'Stock Movement',
+                  titleKey: 'nav.stockMovement',
                   url: '/analytics-1c/stock-movement',
                   screen: SCREENS.ANALYTICS,
                   icon: Warehouse,
                 },
                 {
                   title: 'Distributor Sales',
+                  titleKey: 'nav.distributorSales',
                   url: '/analytics-1c/distributor-sales',
                   screen: SCREENS.ANALYTICS,
                   icon: Truck,
                 },
                 {
                   title: 'Product Sales',
+                  titleKey: 'nav.productSales',
                   url: '/analytics-1c/product-sales',
                   screen: SCREENS.ANALYTICS,
                   icon: Package,
@@ -174,10 +197,12 @@ export const sidebarData: SidebarData = {
             },
             {
               title: 'Power BI',
+              titleKey: 'nav.powerBi',
               icon: Presentation,
               items: [
                 {
                   title: 'Solgar EN Online&Offline',
+                  titleKey: 'nav.powerBiSolgarEn',
                   url: '/powerbi',
                   screen: SCREENS.ANALYTICS,
                   icon: Presentation,
@@ -185,12 +210,14 @@ export const sidebarData: SidebarData = {
                 },
                 {
                   title: 'Solgar Общий Обзор',
+                  titleKey: 'nav.powerBiSolgar',
                   url: '/powerbi-obshiy',
                   screen: SCREENS.ANALYTICS,
                   icon: Globe,
                 },
                 {
                   title: "Nature's Bounty Общий Обзор",
+                  titleKey: 'nav.powerBiBounty',
                   url: '/powerbi-bounty',
                   screen: SCREENS.ANALYTICS,
                   icon: Award,
@@ -201,16 +228,19 @@ export const sidebarData: SidebarData = {
         },
         {
           title: 'HRlink',
+          titleKey: 'nav.hrlink',
           url: '/hrlink',
           icon: Link2,
         },
         {
           title: 'Битрикс24',
+          titleKey: 'nav.bitrix24',
           url: '/bitrix24',
           icon: MessageCircle,
         },
         {
           title: 'FAQ',
+          titleKey: 'nav.faq',
           url: '/faq',
           screen: SCREENS.FAQ,
           icon: HelpCircle,

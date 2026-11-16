@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { BadgeCheck, Bell, ChevronsUpDown, LogOut } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { getDisplayNameInitials } from '@/lib/utils'
 import useDialogState from '@/hooks/use-dialog-state'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -18,6 +19,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar'
+import { LanguageSubMenu } from '@/components/language-switch'
 import { SignOutDialog } from '@/components/sign-out-dialog'
 
 type NavUserProps = {
@@ -31,6 +33,7 @@ type NavUserProps = {
 export function NavUser({ user }: NavUserProps) {
   const { isMobile } = useSidebar()
   const [open, setOpen] = useDialogState()
+  const { t } = useTranslation()
 
   return (
     <>
@@ -79,15 +82,16 @@ export function NavUser({ user }: NavUserProps) {
                 <DropdownMenuItem asChild>
                   <Link to='/settings/account'>
                     <BadgeCheck />
-                    Профиль
+                    {t('user.profile')}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to='/settings/notifications'>
                     <Bell />
-                    Уведомления
+                    {t('user.notifications')}
                   </Link>
                 </DropdownMenuItem>
+                <LanguageSubMenu />
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -95,7 +99,7 @@ export function NavUser({ user }: NavUserProps) {
                 onClick={() => setOpen(true)}
               >
                 <LogOut />
-                Выйти
+                {t('user.signOut')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

@@ -545,12 +545,12 @@ export function Pharmacies() {
   const formCountry = locked ? countryLock.userCountry : form.country
 
   // Same idea for the form's Мед. представитель (marketing_staff): a
-  // non-staff user is a medrep and only ever files pharmacies under their
-  // own name (me.medrep_name, possibly '' until IT maps them — the field
-  // then stays empty but still locked). Staff pick freely. Locked too while
-  // /me/ is still loading.
+  // medrep only ever files pharmacies under their own name. Who is a medrep
+  // is decided by me.medrep_name, not is_staff — the backend fills it only
+  // for real field reps, so territorial managers (is_staff false too, e.g.
+  // Нечаева) get '' and pick the medrep freely. Locked while /me/ loads.
   const meQuery = useQuery(authMeQueryOptions)
-  const medrepLocked = meQuery.data?.is_staff === false
+  const medrepLocked = Boolean(meQuery.data?.medrep_name)
   const medrepDisabled = medrepLocked || meQuery.isLoading
   const formMarketingStaff = medrepLocked
     ? (meQuery.data?.medrep_name ?? '')
