@@ -210,6 +210,44 @@ export function subtypesFor(code: string): PromoSubtype[] {
   return PROMO_CATALOG.find((c) => c.code === key)?.subtypes ?? []
 }
 
+/** Промо whose Подтип is picked only from photos («Выбрать фото», no text
+ * list) and whose Размер comes only from the picked Подтип (not editable).
+ * Their Подтип/Размер list comes from the backend
+ * (/sales/api/pharmacy/equipment/subtypes/), not from PROMO_CATALOG; the
+ * value is the `promo` that API expects (prm_pos_classification.marketing). */
+const API_SUBTYPE_PROMOS: Record<string, string> = {
+  СТОЙКИ: 'Стойка',
+}
+
+export function isPhotoOnlyPromo(code: string): boolean {
+  return code in API_SUBTYPE_PROMOS
+}
+
+/** The subtypes API's `promo` for this Промо, or null if it isn't API-backed. */
+export function apiSubtypePromo(code: string): string | null {
+  return API_SUBTYPE_PROMOS[code] ?? null
+}
+
+// Подтип names compared loosely: case, ё/е, Latin/Cyrillic х, spacing.
+const normName = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/x/g, 'х')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+/** The frontend photo for a Подтип name (as the backend spells it), looked
+ * up among this Промо's catalog entries — undefined if none matches. */
+export function photoForSubtype(
+  code: string,
+  name: string
+): string | undefined {
+  const key = normName(name)
+  return subtypesFor(code).find((s) => s.photo && normName(s.name) === key)
+    ?.photo
+}
+
 /** Bir promo kodunun fotolu alt tipleri (galeri) */
 export function photoSubtypesFor(code: string): PromoSubtype[] {
   return subtypesFor(code).filter((s) => s.photo)

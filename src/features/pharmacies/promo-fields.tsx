@@ -10,7 +10,13 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { FormSelect } from '@/components/form-select'
-import { PROMO_CODES, photoSubtypesFor, subtypesFor } from './promo-catalog'
+import {
+  PROMO_CODES,
+  type PromoSubtype,
+  isPhotoOnlyPromo,
+  photoSubtypesFor,
+  subtypesFor,
+} from './promo-catalog'
 
 /**
  * Промо → Подтип cascade plus its photo gallery (only some Промо, e.g.
@@ -23,6 +29,7 @@ export function PromoFields({
   onPromoChange,
   onSubtypeChange,
   promoOptions = PROMO_CODES,
+  apiSubtypes,
 }: {
   promo: string
   subtype: string
@@ -30,11 +37,21 @@ export function PromoFields({
   promoOptions?: string[]
   onPromoChange: (value: string) => void
   onSubtypeChange: (value: string) => void
+  /** Подтип list fetched from the backend (СТОЙКИ) — replaces the catalog's
+   * for a photo-only Промо. */
+  apiSubtypes?: { list: PromoSubtype[]; loading: boolean; error: boolean }
 }) {
   const [galleryOpen, setGalleryOpen] = useState(false)
-  const subtypes = subtypesFor(promo)
-  const photoSubtypes = photoSubtypesFor(promo)
+  const [brokenPhotos, setBrokenPhotos] = useState<Set<string>>(() => new Set())
+  // СТОЙКИ: Подтип only from the photo gallery — no text dropdown — and the
+  // list is the backend's; every Подтип is a gallery card (its photo, or
+  // just its name when no photo matches).
+  const photoOnly = isPhotoOnlyPromo(promo)
+  const subtypes = photoOnly ? (apiSubtypes?.list ?? []) : subtypesFor(promo)
+  const photoSubtypes = photoOnly ? subtypes : photoSubtypesFor(promo)
   const selected = subtypes.find((s) => s.name === subtype)
+  const listLoading = photoOnly && Boolean(apiSubtypes?.loading)
+  const listError = photoOnly && Boolean(apiSubtypes?.error)
 
   return (
     <>
@@ -48,20 +65,40 @@ export function PromoFields({
       </div>
       <div className='space-y-1.5'>
         <Label>Подтип</Label>
-        <div className='flex gap-2'>
-          <div className='min-w-0 flex-1'>
-            <FormSelect
-              value={subtype}
-              options={subtypes.map((s) => s.name)}
-              disabled={!promo}
-              placeholder={promo ? 'Не выбрано' : 'Сначала выберите промо'}
-              onChange={onSubtypeChange}
-            />
-          </div>
-          {photoSubtypes.length > 0 && (
+        <div className='flex items-center gap-2'>
+          {photoOnly ? (
+            <span
+              className={
+                'min-w-0 flex-1 truncate text-sm' +
+                (subtype ? ' font-medium' : ' text-muted-foreground')
+              }
+              title={subtype || undefined}
+            >
+              {subtype ||
+                (listLoading
+                  ? 'Загрузка подтипов…'
+                  : listError
+                    ? 'Не удалось загрузить подтипы'
+                    : subtypes.length === 0
+                      ? 'Нет подтипов'
+                      : 'Не выбрано — выберите по фото')}
+            </span>
+          ) : (
+            <div className='min-w-0 flex-1'>
+              <FormSelect
+                value={subtype}
+                options={subtypes.map((s) => s.name)}
+                disabled={!promo}
+                placeholder={promo ? 'Не выбрано' : 'Сначала выберите промо'}
+                onChange={onSubtypeChange}
+              />
+            </div>
+          )}
+          {(photoOnly || photoSubtypes.length > 0) && (
             <Button
               type='button'
               variant='outline'
+              disabled={photoSubtypes.length === 0}
               onClick={() => setGalleryOpen(true)}
             >
               <ImageIcon className='size-4' />
@@ -104,11 +141,20 @@ export function PromoFields({
                       : '')
                   }
                 >
-                  <img
-                    src={s.photo}
-                    alt={s.name}
-                    className='h-56 w-full bg-muted object-contain p-2'
-                  />
+                  {s.photo && !brokenPhotos.has(s.name) ? (
+                    <img
+                      src={s.photo}
+                      alt={s.name}
+                      className='h-56 w-full bg-muted object-contain p-2'
+                      onError={() =>
+                        setBrokenPhotos((prev) => new Set(prev).add(s.name))
+                      }
+                    />
+                  ) : (
+                    <div className='flex h-56 w-full items-center justify-center bg-muted p-4 text-center text-sm text-muted-foreground'>
+                      Нет фото
+                    </div>
+                  )}
                   <p className='mt-2 px-2 pb-2 text-center text-sm font-medium'>
                     {s.name}
                   </p>

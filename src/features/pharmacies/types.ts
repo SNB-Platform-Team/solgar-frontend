@@ -186,6 +186,14 @@ export interface PharmacyEquipmentMeta {
   imidzh: string[]
 }
 
+/** Shape of GET /sales/api/pharmacy/equipment/subtypes/?promo=… — a Промо's
+ * Подтип + Размер list for the user's brand (prm_pos_classification). */
+export interface PharmacyEquipmentSubtypes {
+  promo: string
+  brand: string
+  subtypes: { podtip: string; razmer: string }[]
+}
+
 /** Shape of POST /sales/api/pharmacy/equipment/save/ — the created row. */
 export interface PharmacyEquipmentSaveResponse {
   row?: PharmacyHardwareRow

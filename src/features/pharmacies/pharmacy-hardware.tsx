@@ -25,12 +25,20 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { posImageUrl } from './pos-images'
-import { PROMO_CODES, subtypesFor } from './promo-catalog'
+import {
+  PROMO_CODES,
+  apiSubtypePromo,
+  isPhotoOnlyPromo,
+  photoForSubtype,
+  subtypesFor,
+  type PromoSubtype,
+} from './promo-catalog'
 import { PromoFields } from './promo-fields'
 import {
   type PharmacyCornerLogResponse,
   type PharmacyEquipmentDeleteResponse,
   type PharmacyEquipmentMeta,
+  type PharmacyEquipmentSubtypes,
   type PharmacyEquipmentSaveResponse,
   type PharmacyHardwarePhoto,
   type PharmacyHardwareRow,
@@ -168,6 +176,29 @@ export function PharmacyHardware({
     staleTime: Infinity,
   })
   const promoOptions = meta?.promos.map((p) => p.name) ?? PROMO_CODES
+  // СТОЙКИ: Подтип + Размер from the backend (prm_pos_classification, by the
+  // user's brand); names are matched to frontend photos here.
+  const subtypesPromo = apiSubtypePromo(selectedPromo)
+  const subtypesQuery = useQuery({
+    queryKey: ['pharmacy-equipment-subtypes', subtypesPromo],
+    queryFn: async () => {
+      const res = await api.get<PharmacyEquipmentSubtypes>(
+        '/sales/api/pharmacy/equipment/subtypes/',
+        { params: { promo: subtypesPromo } }
+      )
+      return res.data
+    },
+    enabled: canAdd && subtypesPromo !== null,
+    staleTime: 5 * 60 * 1000,
+  })
+  const apiSubtypeList: PromoSubtype[] = (
+    subtypesQuery.data?.subtypes ?? []
+  ).map((s) => ({
+    name: s.podtip,
+    brand: subtypesQuery.data?.brand ?? '',
+    size: s.razmer,
+    photo: photoForSubtype(selectedPromo, s.podtip),
+  }))
   const requiresImidzh = Boolean(
     meta?.promos.find((p) => p.name === selectedPromo)?.requires_imidzh
   )
@@ -249,7 +280,12 @@ export function PharmacyHardware({
 
   const handleSubtypeChange = (subtype: string) => {
     setSelectedSubtype(subtype)
-    setSelectedSize(catalogSize(selectedPromo, subtype))
+    // СТОЙКИ: the API's размер as-is (may be text, e.g. «индивидуальные»).
+    setSelectedSize(
+      isPhotoOnlyPromo(selectedPromo)
+        ? (apiSubtypeList.find((s) => s.name === subtype)?.size ?? '')
+        : catalogSize(selectedPromo, subtype)
+    )
   }
 
   const handlePhotosPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -391,6 +427,11 @@ export function PharmacyHardware({
                 setSelectedImidzh('')
               }}
               onSubtypeChange={handleSubtypeChange}
+              apiSubtypes={{
+                list: apiSubtypeList,
+                loading: subtypesQuery.isLoading,
+                error: subtypesQuery.isError,
+              }}
             />
             <div className='space-y-1.5'>
               <Label htmlFor='hardware-size'>Размер</Label>
@@ -398,8 +439,9 @@ export function PharmacyHardware({
                 id='hardware-size'
                 value={selectedSize}
                 onChange={(e) => setSelectedSize(e.target.value)}
-                disabled={!selectedSubtype}
-                placeholder='180*30*20'
+                // СТОЙКИ: Размер is the picked Подтип's own — never typed.
+                disabled={!selectedSubtype || isPhotoOnlyPromo(selectedPromo)}
+                placeholder={isPhotoOnlyPromo(selectedPromo) ? '' : '180*30*20'}
               />
             </div>
             {requiresImidzh && (
