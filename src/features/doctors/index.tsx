@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import { useTranslation } from 'react-i18next'
 import {
   AlertCircle,
   CheckCircle2,
@@ -10,6 +9,7 @@ import {
   ListFilter,
   X,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { api } from '@/lib/api'
 import { authMeQueryOptions } from '@/lib/auth'
 import { withChanges } from '@/lib/field-changes'
@@ -124,6 +124,7 @@ const PANEL_FILTER_KEYS: (keyof ListFilters)[] = [
   'medrep',
   'unified_specialty',
   'specialty',
+  'activeness',
 ]
 
 // Today as yyyy-MM-dd (local time) — Дата активации's default.
@@ -1487,6 +1488,15 @@ export function Doctors() {
                       options={filterOptions?.specialties ?? []}
                       placeholder='Все'
                       onChange={(v) => setLfField('specialty', v)}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label>Активность</Label>
+                    <FormSelect
+                      value={lf.activeness}
+                      options={filterOptions?.activenesses ?? []}
+                      placeholder='Все'
+                      onChange={(v) => setLfField('activeness', v)}
                     />
                   </div>
                 </div>

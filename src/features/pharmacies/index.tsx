@@ -1851,6 +1851,15 @@ export function Pharmacies() {
                       onChange={(v) => changeLf({ subgroup_company: v })}
                     />
                   </div>
+                  <div className='space-y-1.5'>
+                    <Label>Активность</Label>
+                    {/* pharmacy_api reads it as ?pharmacy_activeness= */}
+                    <FormSelect
+                      value={lf.pharmacy_activeness}
+                      options={lfOptions?.activenesses ?? []}
+                      onChange={(v) => changeLf({ pharmacy_activeness: v })}
+                    />
+                  </div>
                 </div>
               </div>
             )}

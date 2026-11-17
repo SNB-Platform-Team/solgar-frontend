@@ -34,6 +34,8 @@ export interface DoctorFilterOptions {
   regions?: string[]
   cities?: string[]
   metros?: string[]
+  /** Активность choices for the Фильтр panel (activeness, from DB). */
+  activenesses?: string[]
 }
 
 /** One cascading level — GET filter-options/?level=&country=&area=&region= */

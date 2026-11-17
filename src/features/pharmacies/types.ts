@@ -41,6 +41,8 @@ export interface PharmacyFilterOptions {
   regions?: string[]
   cities?: string[]
   metros?: string[]
+  /** Активность choices for the Фильтр panel (pharmacy_activeness, from DB). */
+  activenesses?: string[]
 }
 
 /** One cascading level — GET filter-options/?brand=&level=&country=&area=&region= */
