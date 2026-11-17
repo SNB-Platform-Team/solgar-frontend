@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Plus, Trash2, X } from 'lucide-react'
+import { Loader2, Pencil, Plus, Save, Trash2, X } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +13,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -87,23 +94,35 @@ function backendError(error: unknown, fallback: string): string {
   return fallback
 }
 
-/** A photo picked for the next row: the File is what gets uploaded, the
+/** A photo picked for the next save: the File is what gets uploaded, the
  * object URL only drives its preview. */
 interface PendingPhoto {
   file: File
   url: string
 }
 
+/** What the add / edit form hands back on submit. `imidzh` is '' unless the
+ * Промо needs one; `deletePhotoIds` is only ever non-empty when editing. */
+interface EquipmentDraft {
+  promo: string
+  subtype: string
+  size: string
+  imidzh: string
+  newPhotos: File[]
+  deletePhotoIds: number[]
+}
+
 /**
  * Оборудование panel for the pharmacy picked in the list below it: the
  * record's equipment — read-only legacy rows from corner_info plus rows from
  * the equipment table — and Промо + Подтип + Размер + photos + Добавить,
- * which saves a new row straight away. Only "new" rows can be deleted.
- * Render with a `key` per pharmacy so the form resets when another one is
- * opened.
+ * which saves a new row straight away. Only "new" rows can be deleted or
+ * edited (Редактировать opens the same form, filled with the row, in a
+ * dialog). Render with a `key` per pharmacy so the form resets when another
+ * one is opened.
  *
- * The add section (Промо/Подтип/Размер/photos/Добавить) only shows with
- * `canAdd` — without it the panel just lists rows.
+ * The add section and Редактировать only show with `canAdd` — without it the
+ * panel just lists rows (and Удалить).
  *
  * Its Промо/Подтип are its own state on purpose: the card's fields of the
  * same name are saved by Обновить (into promo/comments), and adding a row
@@ -119,33 +138,15 @@ export function PharmacyHardware({
   pharmacyId: string | number
   /** Which pharmacy this is, for the heading. */
   title: string
-  /** Show the add-equipment section. */
+  /** Show the add-equipment section and Редактировать. */
   canAdd?: boolean
 }) {
   const queryClient = useQueryClient()
-  const [selectedPromo, setSelectedPromo] = useState('')
-  const [selectedSubtype, setSelectedSubtype] = useState('')
-  const [selectedSize, setSelectedSize] = useState('')
-  const [selectedImidzh, setSelectedImidzh] = useState('')
-  const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([])
   const [notice, setNotice] = useState<string | null>(null)
-
-  // Every object URL still alive — each one pins its file in memory until
-  // revoked, so they're released on removal, after saving and when the
-  // panel unmounts.
-  const objectUrls = useRef(new Set<string>())
-  useEffect(() => {
-    const urls = objectUrls.current
-    return () => {
-      urls.forEach((url) => URL.revokeObjectURL(url))
-      urls.clear()
-    }
-  }, [])
-  const releasePhotos = (photos: PendingPhoto[]) => {
-    photos.forEach(({ url }) => {
-      if (objectUrls.current.delete(url)) URL.revokeObjectURL(url)
-    })
-  }
+  // Bumped after a save: remounts the add form, so it starts empty again.
+  const [addFormKey, setAddFormKey] = useState(0)
+  const [editingRow, setEditingRow] = useState<PharmacyHardwareRow | null>(null)
+  const [editNotice, setEditNotice] = useState<string | null>(null)
 
   const queryKey = ['pharmacy-corner-log', brand, pharmacyId]
   const { data, isLoading, error } = useQuery<PharmacyCornerLogResponse>({
@@ -175,36 +176,9 @@ export function PharmacyHardware({
     enabled: canAdd,
     staleTime: Infinity,
   })
-  const promoOptions = meta?.promos.map((p) => p.name) ?? PROMO_CODES
-  // СТОЙКИ: Подтип + Размер from the backend (prm_pos_classification, by the
-  // user's brand); names are matched to frontend photos here.
-  const subtypesPromo = apiSubtypePromo(selectedPromo)
-  const subtypesQuery = useQuery({
-    queryKey: ['pharmacy-equipment-subtypes', subtypesPromo],
-    queryFn: async () => {
-      const res = await api.get<PharmacyEquipmentSubtypes>(
-        '/sales/api/pharmacy/equipment/subtypes/',
-        { params: { promo: subtypesPromo } }
-      )
-      return res.data
-    },
-    enabled: canAdd && subtypesPromo !== null,
-    staleTime: 5 * 60 * 1000,
-  })
-  const apiSubtypeList: PromoSubtype[] = (
-    subtypesQuery.data?.subtypes ?? []
-  ).map((s) => ({
-    name: s.podtip,
-    brand: subtypesQuery.data?.brand ?? '',
-    size: s.razmer,
-    photo: photoForSubtype(s.podtip, subtypesQuery.data?.brand ?? ''),
-  }))
-  const requiresImidzh = Boolean(
-    meta?.promos.find((p) => p.name === selectedPromo)?.requires_imidzh
-  )
 
-  // Saved and deleted rows are written into the cached list rather than
-  // refetched, so the table changes the moment the request succeeds.
+  // Saved, edited and deleted rows are written into the cached list rather
+  // than refetched, so the table changes the moment the request succeeds.
   const updateRows = (
     change: (rows: PharmacyHardwareRow[]) => PharmacyHardwareRow[]
   ) =>
@@ -213,15 +187,15 @@ export function PharmacyHardware({
     )
 
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (draft: EquipmentDraft) => {
       const body = new FormData()
       body.append('brand', brand)
       body.append('id', String(pharmacyId))
-      body.append('promo', selectedPromo)
-      body.append('subtype', selectedSubtype)
-      body.append('size', selectedSize.trim())
-      if (requiresImidzh) body.append('imidzh', selectedImidzh)
-      pendingPhotos.forEach(({ file }) => body.append('photos', file))
+      body.append('promo', draft.promo)
+      body.append('subtype', draft.subtype)
+      body.append('size', draft.size)
+      if (draft.imidzh) body.append('imidzh', draft.imidzh)
+      draft.newPhotos.forEach((file) => body.append('photos', file))
       const res = await api.post<PharmacyEquipmentSaveResponse>(
         '/sales/api/pharmacy/equipment/save/',
         body
@@ -235,16 +209,51 @@ export function PharmacyHardware({
         return
       }
       updateRows((prev) => [...prev, saved])
-      // Ready for the next item.
-      releasePhotos(pendingPhotos)
-      setPendingPhotos([])
-      setSelectedPromo('')
-      setSelectedSubtype('')
-      setSelectedSize('')
-      setSelectedImidzh('')
+      setAddFormKey((k) => k + 1) // ready for the next item
     },
     onError: (err) =>
       setNotice(backendError(err, 'Не удалось сохранить оборудование')),
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: async ({
+      equipmentId,
+      draft,
+    }: {
+      equipmentId: number
+      draft: EquipmentDraft
+    }) => {
+      const body = new FormData()
+      body.append('equipment_id', String(equipmentId))
+      body.append('promo', draft.promo)
+      body.append('subtype', draft.subtype)
+      body.append('size', draft.size)
+      body.append('imidzh', draft.imidzh)
+      draft.deletePhotoIds.forEach((id) =>
+        body.append('delete_photo_ids', String(id))
+      )
+      draft.newPhotos.forEach((file) => body.append('photos', file))
+      const res = await api.post<PharmacyEquipmentSaveResponse>(
+        '/sales/api/pharmacy/equipment/update/',
+        body
+      )
+      return res.data
+    },
+    onSuccess: (res, { equipmentId }) => {
+      const updated = res.row
+      if (res.error || !updated) {
+        setEditNotice(res.error || 'Не удалось сохранить изменения')
+        return
+      }
+      updateRows((prev) =>
+        prev.map((r) =>
+          r.source === 'new' && r.id === equipmentId ? updated : r
+        )
+      )
+      setEditingRow(null)
+    },
+    onError: (err) =>
+      setEditNotice(backendError(err, 'Не удалось сохранить изменения')),
   })
 
   const deleteMutation = useMutation({
@@ -268,42 +277,18 @@ export function PharmacyHardware({
       setNotice(backendError(err, 'Не удалось удалить оборудование')),
   })
 
-  const handleAdd = () => {
-    setNotice(null)
-    saveMutation.mutate()
-  }
-
   const handleDelete = (equipmentId: number) => {
     setNotice(null)
     deleteMutation.mutate(equipmentId)
   }
 
-  const handleSubtypeChange = (subtype: string) => {
-    setSelectedSubtype(subtype)
-    // СТОЙКИ: the API's размер as-is (may be text, e.g. «индивидуальные»).
-    setSelectedSize(
-      isPhotoOnlyPromo(selectedPromo)
-        ? (apiSubtypeList.find((s) => s.name === subtype)?.size ?? '')
-        : catalogSize(selectedPromo, subtype)
-    )
+  const openEdit = (row: PharmacyHardwareRow) => {
+    setEditNotice(null)
+    setEditingRow(row)
   }
 
-  const handlePhotosPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const picked = Array.from(e.target.files ?? [])
-      .filter((file) => file.type.startsWith('image/'))
-      .map((file) => ({ file, url: URL.createObjectURL(file) }))
-    picked.forEach(({ url }) => objectUrls.current.add(url))
-    setPendingPhotos((prev) => [...prev, ...picked])
-    // Cleared so picking the same file again still fires onChange.
-    e.target.value = ''
-  }
-
-  const handleRemovePendingPhoto = (photo: PendingPhoto) => {
-    setPendingPhotos((prev) => prev.filter((p) => p !== photo))
-    releasePhotos([photo])
-  }
-
-  const saving = saveMutation.isPending
+  const updating = updateMutation.isPending
+  const editingId = editingRow?.id
 
   return (
     <Card className='mb-4'>
@@ -335,7 +320,7 @@ export function PharmacyHardware({
                     Статус оборудования
                   </TableHead>
                   <TableHead className='h-8 font-semibold'>Фото</TableHead>
-                  <TableHead className='h-8 w-10' />
+                  <TableHead className='h-8 w-20' />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -385,21 +370,38 @@ export function PharmacyHardware({
                       </TableCell>
                       <TableCell className='py-1'>
                         {equipmentId !== null && (
-                          <Button
-                            type='button'
-                            variant='ghost'
-                            size='icon'
-                            className='size-7 text-muted-foreground hover:text-destructive'
-                            aria-label={`Удалить: ${row.promo} — ${row.subtype}`}
-                            disabled={deleting}
-                            onClick={() => handleDelete(equipmentId)}
-                          >
-                            {deleting ? (
-                              <Loader2 className='size-4 animate-spin' />
-                            ) : (
-                              <Trash2 className='size-4' />
+                          <div className='flex items-center justify-end gap-0.5'>
+                            {canAdd && (
+                              <Button
+                                type='button'
+                                variant='ghost'
+                                size='icon'
+                                className='size-7 text-muted-foreground hover:text-foreground'
+                                aria-label={`Редактировать: ${row.promo} — ${row.subtype}`}
+                                title='Редактировать'
+                                disabled={deleting}
+                                onClick={() => openEdit(row)}
+                              >
+                                <Pencil className='size-4' />
+                              </Button>
                             )}
-                          </Button>
+                            <Button
+                              type='button'
+                              variant='ghost'
+                              size='icon'
+                              className='size-7 text-muted-foreground hover:text-destructive'
+                              aria-label={`Удалить: ${row.promo} — ${row.subtype}`}
+                              title='Удалить'
+                              disabled={deleting}
+                              onClick={() => handleDelete(equipmentId)}
+                            >
+                              {deleting ? (
+                                <Loader2 className='size-4 animate-spin' />
+                              ) : (
+                                <Trash2 className='size-4' />
+                              )}
+                            </Button>
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>
@@ -415,110 +417,335 @@ export function PharmacyHardware({
         )}
 
         {canAdd && (
-          <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-            <PromoFields
-              promo={selectedPromo}
-              subtype={selectedSubtype}
-              promoOptions={promoOptions}
-              onPromoChange={(v) => {
-                setSelectedPromo(v)
-                setSelectedSubtype('')
-                setSelectedSize('')
-                setSelectedImidzh('')
-              }}
-              onSubtypeChange={handleSubtypeChange}
-              apiSubtypes={{
-                list: apiSubtypeList,
-                loading: subtypesQuery.isLoading,
-                error: subtypesQuery.isError,
-              }}
-            />
-            <div className='space-y-1.5'>
-              <Label htmlFor='hardware-size'>Размер</Label>
-              <Input
-                id='hardware-size'
-                value={selectedSize}
-                onChange={(e) => setSelectedSize(e.target.value)}
-                // СТОЙКИ: Размер is the picked Подтип's own — never typed.
-                disabled={!selectedSubtype || isPhotoOnlyPromo(selectedPromo)}
-                placeholder={isPhotoOnlyPromo(selectedPromo) ? '' : '180*30*20'}
-              />
-            </div>
-            {/* Must-have Промо: the POS имидж opens once a Подтип is
-                picked, and both are required for Добавить. */}
-            {requiresImidzh && selectedSubtype && (
-              <ImidzhPicker
-                brand={meta?.brand ?? ''}
-                names={meta?.imidzh ?? []}
-                value={selectedImidzh}
-                onChange={setSelectedImidzh}
-                disabled={saving}
-              />
-            )}
-            <div className='space-y-1.5 sm:col-span-2'>
-              <Label htmlFor='hardware-photos'>
-                Фото с места установки{' '}
-                <span className='text-destructive'>*</span>
-              </Label>
-              <Input
-                id='hardware-photos'
-                type='file'
-                accept='image/*'
-                multiple
-                disabled={saving}
-                onChange={handlePhotosPicked}
-              />
-              {pendingPhotos.length > 0 && (
-                <div className='flex flex-wrap gap-2 pt-1'>
-                  {pendingPhotos.map((photo, idx) => (
-                    <div key={photo.url} className='relative'>
-                      <img
-                        src={photo.url}
-                        alt={`Фото ${idx + 1}`}
-                        className='size-16 rounded-md border object-cover'
-                      />
-                      <button
-                        type='button'
-                        aria-label={`Убрать фото ${idx + 1}`}
-                        disabled={saving}
-                        onClick={() => handleRemovePendingPhoto(photo)}
-                        className='absolute -end-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full border bg-background text-muted-foreground hover:text-destructive disabled:pointer-events-none disabled:opacity-50'
-                      >
-                        <X className='size-3' />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className='sm:pt-5'>
-              <Button
-                type='button'
-                variant='outline'
-                onClick={handleAdd}
-                disabled={
-                  !selectedPromo ||
-                  !selectedSubtype ||
-                  (requiresImidzh && !selectedImidzh) ||
-                  // at least one installation photo, for every Промо
-                  pendingPhotos.length === 0 ||
-                  saving
-                }
-              >
-                {saving ? (
-                  <Loader2 className='size-4 animate-spin' />
-                ) : (
-                  <Plus className='size-4' />
-                )}
-                Добавить
-              </Button>
-            </div>
-          </div>
+          <EquipmentForm
+            key={addFormKey}
+            idPrefix='hardware-add'
+            meta={meta}
+            busy={saveMutation.isPending}
+            submitLabel='Добавить'
+            submitIcon={<Plus className='size-4' />}
+            onSubmit={(draft) => {
+              setNotice(null)
+              saveMutation.mutate(draft)
+            }}
+          />
         )}
 
         {notice && <p className='text-sm text-destructive'>{notice}</p>}
       </CardContent>
+
+      <Dialog
+        open={editingRow !== null}
+        onOpenChange={(open) => {
+          if (!open && !updating) setEditingRow(null)
+        }}
+      >
+        <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-3xl'>
+          <DialogHeader>
+            <DialogTitle>Редактировать оборудование</DialogTitle>
+            <DialogDescription>
+              {editingRow
+                ? `${editingRow.promo || '—'} — ${editingRow.subtype || '—'}`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {editingRow && editingId != null && (
+            <EquipmentForm
+              key={editingId}
+              idPrefix='hardware-edit'
+              initial={editingRow}
+              meta={meta}
+              busy={updating}
+              submitLabel='Сохранить'
+              submitIcon={<Save className='size-4' />}
+              submitVariant='default'
+              onCancel={() => setEditingRow(null)}
+              onSubmit={(draft) => {
+                setEditNotice(null)
+                updateMutation.mutate({ equipmentId: editingId, draft })
+              }}
+            />
+          )}
+          {editNotice && (
+            <p className='text-sm text-destructive'>{editNotice}</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
+  )
+}
+
+/**
+ * Промо + Подтип (photo gallery) + Размер + имидж (must-have Промо) +
+ * installation photos, and the submit button — the add section, and (with
+ * `initial`) the Редактировать dialog, where the row's own photos are listed
+ * too and can be removed. Holds its own state; remount it (`key`) to reset.
+ * Submit needs a Подтип, an имидж when the Промо requires one, and at least
+ * one photo left after removals + additions.
+ */
+function EquipmentForm({
+  idPrefix,
+  initial,
+  meta,
+  busy,
+  submitLabel,
+  submitIcon,
+  submitVariant = 'outline',
+  onSubmit,
+  onCancel,
+}: {
+  /** Prefix for the inputs' ids (add form and dialog can both be mounted). */
+  idPrefix: string
+  /** The row being edited — its values and photos fill the form. */
+  initial?: PharmacyHardwareRow
+  meta: PharmacyEquipmentMeta | undefined
+  busy: boolean
+  submitLabel: string
+  submitIcon: React.ReactNode
+  submitVariant?: 'outline' | 'default'
+  onSubmit: (draft: EquipmentDraft) => void
+  onCancel?: () => void
+}) {
+  const [promo, setPromo] = useState(initial?.promo ?? '')
+  const [subtype, setSubtype] = useState(initial?.subtype ?? '')
+  const [size, setSize] = useState(initial?.size ?? '')
+  const [imidzh, setImidzh] = useState(initial?.imidzh ?? '')
+  // The row's saved photos still kept, and the ids of the ones removed.
+  const [keptPhotos, setKeptPhotos] = useState<PharmacyHardwarePhoto[]>(
+    initial?.photos ?? []
+  )
+  const [deletedPhotoIds, setDeletedPhotoIds] = useState<number[]>([])
+  const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([])
+
+  // Every object URL still alive — each one pins its file in memory until
+  // revoked, so they're released on removal and when the form unmounts
+  // (after a save, the add form is remounted).
+  const objectUrls = useRef(new Set<string>())
+  useEffect(() => {
+    const urls = objectUrls.current
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url))
+      urls.clear()
+    }
+  }, [])
+
+  const promoOptions = meta?.promos.map((p) => p.name) ?? PROMO_CODES
+  // Подтип + Размер from the backend (prm_pos_classification, by the user's
+  // brand); names are matched to frontend photos here.
+  const subtypesPromo = apiSubtypePromo(promo)
+  const subtypesQuery = useQuery({
+    queryKey: ['pharmacy-equipment-subtypes', subtypesPromo],
+    queryFn: async () => {
+      const res = await api.get<PharmacyEquipmentSubtypes>(
+        '/sales/api/pharmacy/equipment/subtypes/',
+        { params: { promo: subtypesPromo } }
+      )
+      return res.data
+    },
+    enabled: subtypesPromo !== null,
+    staleTime: 5 * 60 * 1000,
+  })
+  const apiSubtypeList: PromoSubtype[] = (
+    subtypesQuery.data?.subtypes ?? []
+  ).map((s) => ({
+    name: s.podtip,
+    brand: subtypesQuery.data?.brand ?? '',
+    size: s.razmer,
+    photo: photoForSubtype(s.podtip, subtypesQuery.data?.brand ?? ''),
+  }))
+  const requiresImidzh = Boolean(
+    meta?.promos.find((p) => p.name === promo)?.requires_imidzh
+  )
+
+  const handleSubtypeChange = (value: string) => {
+    setSubtype(value)
+    // The API's размер as-is (may be text, e.g. «индивидуальные»).
+    setSize(
+      isPhotoOnlyPromo(promo)
+        ? (apiSubtypeList.find((s) => s.name === value)?.size ?? '')
+        : catalogSize(promo, value)
+    )
+  }
+
+  const handlePhotosPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files ?? [])
+      .filter((file) => file.type.startsWith('image/'))
+      .map((file) => ({ file, url: URL.createObjectURL(file) }))
+    picked.forEach(({ url }) => objectUrls.current.add(url))
+    setPendingPhotos((prev) => [...prev, ...picked])
+    // Cleared so picking the same file again still fires onChange.
+    e.target.value = ''
+  }
+
+  const handleRemovePendingPhoto = (photo: PendingPhoto) => {
+    setPendingPhotos((prev) => prev.filter((p) => p !== photo))
+    if (objectUrls.current.delete(photo.url)) URL.revokeObjectURL(photo.url)
+  }
+
+  const handleRemoveKeptPhoto = (photo: PharmacyHardwarePhoto) => {
+    setKeptPhotos((prev) => prev.filter((p) => p.id !== photo.id))
+    setDeletedPhotoIds((prev) => [...prev, photo.id])
+  }
+
+  // at least one installation photo, for every Промо
+  const photoCount = keptPhotos.length + pendingPhotos.length
+  const canSubmit =
+    Boolean(promo) &&
+    Boolean(subtype) &&
+    (!requiresImidzh || Boolean(imidzh)) &&
+    photoCount > 0 &&
+    !busy
+
+  const submit = () =>
+    onSubmit({
+      promo,
+      subtype,
+      size: size.trim(),
+      imidzh: requiresImidzh ? imidzh : '',
+      newPhotos: pendingPhotos.map((p) => p.file),
+      deletePhotoIds: deletedPhotoIds,
+    })
+
+  return (
+    <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+      <PromoFields
+        promo={promo}
+        subtype={subtype}
+        promoOptions={promoOptions}
+        onPromoChange={(v) => {
+          setPromo(v)
+          setSubtype('')
+          setSize('')
+          setImidzh('')
+        }}
+        onSubtypeChange={handleSubtypeChange}
+        apiSubtypes={{
+          list: apiSubtypeList,
+          loading: subtypesQuery.isLoading,
+          error: subtypesQuery.isError,
+        }}
+      />
+      <div className='space-y-1.5'>
+        <Label htmlFor={`${idPrefix}-size`}>Размер</Label>
+        <Input
+          id={`${idPrefix}-size`}
+          value={size}
+          onChange={(e) => setSize(e.target.value)}
+          // API-backed Промо: Размер is the picked Подтип's own — never typed.
+          disabled={!subtype || isPhotoOnlyPromo(promo)}
+          placeholder={isPhotoOnlyPromo(promo) ? '' : '180*30*20'}
+        />
+      </div>
+      {/* Must-have Промо: the POS имидж opens once a Подтип is picked, and
+          both are required. */}
+      {requiresImidzh && subtype && (
+        <ImidzhPicker
+          brand={meta?.brand ?? ''}
+          names={meta?.imidzh ?? []}
+          value={imidzh}
+          onChange={setImidzh}
+          disabled={busy}
+        />
+      )}
+      <div className='space-y-1.5 sm:col-span-2'>
+        <Label htmlFor={`${idPrefix}-photos`}>
+          Фото с места установки <span className='text-destructive'>*</span>
+        </Label>
+        <Input
+          id={`${idPrefix}-photos`}
+          type='file'
+          accept='image/*'
+          multiple
+          disabled={busy}
+          onChange={handlePhotosPicked}
+        />
+        {photoCount > 0 ? (
+          <div className='flex flex-wrap gap-2 pt-1'>
+            {keptPhotos.map((photo, idx) => (
+              <PhotoThumb
+                key={`kept-${photo.id}`}
+                src={photo.url}
+                alt={photo.name || `Фото ${idx + 1}`}
+                removeLabel={`Удалить фото ${photo.name || idx + 1}`}
+                disabled={busy}
+                onRemove={() => handleRemoveKeptPhoto(photo)}
+              />
+            ))}
+            {pendingPhotos.map((photo, idx) => (
+              <PhotoThumb
+                key={photo.url}
+                src={photo.url}
+                alt={`Новое фото ${idx + 1}`}
+                removeLabel={`Убрать фото ${idx + 1}`}
+                disabled={busy}
+                onRemove={() => handleRemovePendingPhoto(photo)}
+              />
+            ))}
+          </div>
+        ) : (
+          initial && (
+            <p className='text-xs text-destructive'>
+              Нужно хотя бы одно фото с места установки
+            </p>
+          )
+        )}
+      </div>
+      <div className='flex items-start gap-2 sm:pt-5'>
+        <Button
+          type='button'
+          variant={submitVariant}
+          onClick={submit}
+          disabled={!canSubmit}
+        >
+          {busy ? <Loader2 className='size-4 animate-spin' /> : submitIcon}
+          {submitLabel}
+        </Button>
+        {onCancel && (
+          <Button
+            type='button'
+            variant='ghost'
+            onClick={onCancel}
+            disabled={busy}
+          >
+            Отмена
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// A photo preview with a × to remove it (a saved photo or a newly picked one).
+function PhotoThumb({
+  src,
+  alt,
+  removeLabel,
+  disabled,
+  onRemove,
+}: {
+  src: string
+  alt: string
+  removeLabel: string
+  disabled?: boolean
+  onRemove: () => void
+}) {
+  return (
+    <div className='relative'>
+      <img
+        src={src}
+        alt={alt}
+        className='size-16 rounded-md border object-cover'
+      />
+      <button
+        type='button'
+        aria-label={removeLabel}
+        disabled={disabled}
+        onClick={onRemove}
+        className='absolute -end-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full border bg-background text-muted-foreground hover:text-destructive disabled:pointer-events-none disabled:opacity-50'
+      >
+        <X className='size-3' />
+      </button>
+    </div>
   )
 }
 
