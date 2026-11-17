@@ -50,6 +50,11 @@ function dateToIso(d: Date): string {
   return `${d.getFullYear()}-${mm}-${dd}`
 }
 
+/** yyyy-MM-dd → the 1st of that month (yyyy-MM-01). */
+function toMonthStart(iso: string): string {
+  return iso.replace(/-\d{2}$/, '-01')
+}
+
 /** Inserts the dots as the user types digits: "0106" → "01.06". */
 function autoFormat(raw: string): string {
   const digits = raw.replace(/\D/g, '').slice(0, 8)
@@ -66,6 +71,9 @@ interface DateInputProps {
   required?: boolean
   disabled?: boolean
   className?: string
+  /** Only the 1st of a month: any typed day becomes 01, the calendar offers
+   * only 1st days, and changing its month/year picks that month's 1st. */
+  monthStart?: boolean
 }
 
 export function DateInput({
@@ -74,6 +82,7 @@ export function DateInput({
   required,
   disabled,
   className,
+  monthStart = false,
 }: DateInputProps) {
   const [text, setText] = useState(() => isoToDisplay(value))
   const [open, setOpen] = useState(false)
@@ -106,7 +115,19 @@ export function DateInput({
       return
     }
     const iso = displayToIso(next)
-    if (iso) onChange(iso)
+    if (!iso) return
+    if (monthStart) {
+      const first = toMonthStart(iso)
+      setText(isoToDisplay(first))
+      onChange(first)
+      return
+    }
+    onChange(iso)
+  }
+
+  const pick = (iso: string) => {
+    setText(isoToDisplay(iso))
+    onChange(iso)
   }
 
   const selected = isoToDate(value)
@@ -151,10 +172,15 @@ export function DateInput({
             onSelect={(d) => {
               if (!d) return
               const iso = dateToIso(d)
-              setText(isoToDisplay(iso))
-              onChange(iso)
+              pick(monthStart ? toMonthStart(iso) : iso)
               setOpen(false)
             }}
+            // monthStart: a month/year change (dropdowns or arrows) picks
+            // that month's 1st right away; other days can't be clicked.
+            onMonthChange={
+              monthStart ? (month) => pick(dateToIso(month)) : undefined
+            }
+            disabled={monthStart ? (d) => d.getDate() !== 1 : undefined}
             formatters={{
               formatMonthDropdown: (date) =>
                 date.toLocaleString('ru-RU', { month: 'short' }),

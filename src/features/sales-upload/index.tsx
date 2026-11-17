@@ -245,13 +245,11 @@ export function SalesUpload() {
     onSuccess: (data) => {
       if (!data.error) {
         setSavedCount(data.created)
-        // Reset the form for the next upload.
+        // Ready for the next file. Страна, Сеть and Дата отчёта stay —
+        // users upload several files for the same chain/month in a row.
         setFile(null)
         setSheets([])
         setSelectedSheet('')
-        setReportDate('')
-        setChainName('')
-        setCountry('')
         setFileInputKey((k) => k + 1)
         setDisplayRows([])
         setDisplayPage(1)
@@ -405,9 +403,11 @@ export function SalesUpload() {
 
                 <div className='space-y-1.5'>
                   <Label>Дата отчёта</Label>
+                  {/* Report dates are always the 1st of the month. */}
                   <DateInput
                     value={reportDate}
                     onChange={(v) => setReportDate(v)}
+                    monthStart
                   />
                 </div>
 
