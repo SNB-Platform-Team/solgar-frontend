@@ -297,6 +297,23 @@ export function PharmacyHardware({
         <CardDescription className='text-xs'>
           Существующее оборудование — из базы.
         </CardDescription>
+        {/* Once per pharmacy (from corner-log), not per row. */}
+        {data && !data.error && (
+          <div className='flex flex-wrap gap-x-6 gap-y-1 pt-1 text-sm'>
+            <span>
+              <span className='text-muted-foreground'>ID аптеки:</span>{' '}
+              <span className='font-medium tabular-nums'>
+                {data.pharmacy_id != null && String(data.pharmacy_id).trim()
+                  ? data.pharmacy_id
+                  : '—'}
+              </span>
+            </span>
+            <span className='min-w-0'>
+              <span className='text-muted-foreground'>Адрес:</span>{' '}
+              <span className='font-medium'>{data.address?.trim() || '—'}</span>
+            </span>
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className='space-y-4'>

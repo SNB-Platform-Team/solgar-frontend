@@ -175,7 +175,10 @@ export interface PharmacyHardwareRow {
 export interface PharmacyCornerLogResponse {
   /** The pharmacy's legacy pharmacy_id (shown as «ID аптеки»). */
   pharmacy_id: string | number | null
+  /** The pharmacy's address — one per pharmacy, may be empty. */
+  address?: string | null
   rows: PharmacyHardwareRow[]
+  demo?: boolean
   error?: string
 }
 
