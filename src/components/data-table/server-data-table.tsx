@@ -63,6 +63,10 @@ const compareCells: SortingFn<ServerRow> = (a, b, columnId) => {
   })
 }
 
+// Columns shown centred (header + cells) instead of the default alignment
+// (numbers right) — matched by the backend's header label.
+const CENTERED_COLUMN_LABELS = new Set(['PHARMACY_ID'])
+
 interface ServerDataTableProps {
   /** Column headers exactly as the backend sends them (data.columns). */
   columns: string[]
@@ -99,6 +103,17 @@ export function ServerDataTable({
   const [detailRow, setDetailRow] = useState<ServerRow | null>(null)
 
   const addressCols = useMemo(() => findAddressColumns(columns), [columns])
+  const centeredColIds = useMemo(
+    () =>
+      new Set(
+        columns.flatMap((header, idx) =>
+          CENTERED_COLUMN_LABELS.has(String(header).trim().toUpperCase())
+            ? [`col-${idx}`]
+            : []
+        )
+      ),
+    [columns]
+  )
 
   const tableColumns = useMemo<ColumnDef<ServerRow>[]>(
     () => [
@@ -186,7 +201,8 @@ export function ServerDataTable({
                     key={header.id}
                     className={cn(
                       'font-semibold whitespace-nowrap',
-                      header.column.id === DETAILS_COLUMN_ID && 'w-10 px-1'
+                      header.column.id === DETAILS_COLUMN_ID && 'w-10 px-1',
+                      centeredColIds.has(header.column.id) && 'text-center'
                     )}
                   >
                     {header.isPlaceholder
@@ -230,7 +246,9 @@ export function ServerDataTable({
                           'py-2.5 whitespace-nowrap',
                           cell.column.id === DETAILS_COLUMN_ID && 'px-1 py-1',
                           typeof cell.getValue() === 'number' &&
-                            'text-right tabular-nums'
+                            'text-right tabular-nums',
+                          centeredColIds.has(cell.column.id) &&
+                            'text-center tabular-nums'
                         )}
                       >
                         {flexRender(
