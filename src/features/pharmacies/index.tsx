@@ -1151,17 +1151,26 @@ export function Pharmacies() {
                       <FieldLabel field='group_company'>
                         Группа компаний
                       </FieldLabel>
-                      <FormSelect
-                        value={form.group_company}
-                        options={formFilterOptions?.chains ?? []}
-                        onChange={(v) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            group_company: v,
-                            subgroup_company: '',
-                          }))
-                        }
-                      />
+                      {isEditing ? (
+                        <Input
+                          value={form.group_company}
+                          disabled
+                          readOnly
+                          className='disabled:opacity-70'
+                        />
+                      ) : (
+                        <FormSelect
+                          value={form.group_company}
+                          options={formFilterOptions?.chains ?? []}
+                          onChange={(v) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              group_company: v,
+                              subgroup_company: '',
+                            }))
+                          }
+                        />
+                      )}
                     </div>
                     <div
                       className='space-y-1.5'
