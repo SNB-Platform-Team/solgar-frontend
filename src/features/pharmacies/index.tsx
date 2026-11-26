@@ -96,6 +96,9 @@ const EMPTY_LIST_FILTERS = {
   promo: '',
   pharmacy_activeness: '',
   marketing_staff: '',
+  // «Оборудование»: '' (Все) / 'yes' (Есть) / 'no' (Нет). Backend ekipmani
+  // olan aptekalari id_in/id_not_in ile suzer (bkz. pharmacy_api).
+  equipment: '',
 }
 
 type ListFilters = typeof EMPTY_LIST_FILTERS
@@ -1860,6 +1863,26 @@ export function Pharmacies() {
                       onChange={(v) => changeLf({ pharmacy_activeness: v })}
                     />
                   </div>
+                  <div className='space-y-1.5'>
+                    <Label>Оборудование</Label>
+                    {/* pharmacy_api reads it as ?equipment= ('' / yes / no).
+                        'Есть' -> только аптеки с оборудованием, 'Нет' -> без. */}
+                    <Select
+                      value={lf.equipment || '__ALL__'}
+                      onValueChange={(v) =>
+                        changeLf({ equipment: v === '__ALL__' ? '' : v })
+                      }
+                    >
+                      <SelectTrigger className='w-full'>
+                        <SelectValue placeholder='Все' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='__ALL__'>Все</SelectItem>
+                        <SelectItem value='yes'>Есть</SelectItem>
+                        <SelectItem value='no'>Нет</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
             )}
@@ -1878,14 +1901,23 @@ export function Pharmacies() {
                 <BrandSpinner size={48} label='Загрузка данных' />
               </div>
             ) : data && data.rows.length > 0 ? (
-              <ServerDataTable
-                columns={data.columns}
-                rows={data.rows}
-                selectedId={editingId}
-                onRowClick={handleRowClick}
-                dimmed={isPlaceholderData}
-                detailsTitle='Детали записи — аптека'
-              />
+              <>
+                <ServerDataTable
+                  columns={data.columns}
+                  rows={data.rows}
+                  selectedId={editingId}
+                  onRowClick={handleRowClick}
+                  dimmed={isPlaceholderData}
+                  detailsTitle='Детали записи — аптека'
+                />
+                {/* Условные обозначения (легенда) — что значит цвет строки. */}
+                <div className='mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground'>
+                  <span className='inline-flex items-center gap-1.5'>
+                    <span className='inline-block size-3 rounded-sm bg-destructive/20 ring-1 ring-destructive/40' />
+                    Адрес неполный
+                  </span>
+                </div>
+              </>
             ) : (
               <div className='py-16 text-center text-muted-foreground italic'>
                 Нет данных
