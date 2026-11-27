@@ -21,7 +21,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { ConfigDrawer } from '@/components/config-drawer'
-import { ListSearchInput } from '@/components/data-table'
 import { ExportExcelButton } from '@/components/export-excel-button'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -51,7 +50,6 @@ const DEFAULT_FILTERS: TmDashboardFilters = {
   medrep: '',
   activeness: '',
   category: '',
-  search: '',
 }
 
 // The four tables, in display order — each with its own export endpoint.
@@ -102,7 +100,6 @@ export function TmDashboard() {
     params.set('medrep', f.medrep)
     params.set('activeness', f.activeness)
     params.set('category', f.category)
-    params.set('search', f.search)
     return params
   }
 
@@ -148,7 +145,7 @@ export function TmDashboard() {
           <CardContent className='space-y-4'>
             <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
               <PlainSelect
-                label='Марка'
+                label='Бренд'
                 value={filters.brand}
                 options={BRAND_OPTIONS}
                 onChange={(v) => setFilter('brand', v)}
@@ -177,14 +174,6 @@ export function TmDashboard() {
                 options={options?.categories ?? []}
                 onChange={(v) => setFilter('category', v)}
               />
-              <div className='space-y-1.5'>
-                <Label>Поиск</Label>
-                <ListSearchInput
-                  value={filters.search}
-                  onChange={(v) => setFilter('search', v)}
-                  placeholder='Поиск...'
-                />
-              </div>
             </div>
           </CardContent>
         </Card>

@@ -33,5 +33,4 @@ export interface TmDashboardFilters {
   medrep: string
   activeness: string
   category: string
-  search: string
 }
