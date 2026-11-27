@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
   AlertCircle,
+  Check,
+  ChevronDown,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -13,6 +15,7 @@ import {
 import { api } from '@/lib/api'
 import { authMeQueryOptions } from '@/lib/auth'
 import { withChanges } from '@/lib/field-changes'
+import { cn } from '@/lib/utils'
 import { useCountryLock } from '@/hooks/use-country-lock'
 import { Alert, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -25,6 +28,11 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -99,6 +107,10 @@ const EMPTY_LIST_FILTERS = {
   // «Оборудование»: '' (Все) / 'yes' (Есть) / 'no' (Нет). Backend ekipmani
   // olan aptekalari id_in/id_not_in ile suzer (bkz. pharmacy_api).
   equipment: '',
+  // «Класс оборудования»: several POS classes, comma-joined
+  // ('Стойка,Корнер') — pharmacy_api returns pharmacies with equipment of
+  // ANY of them. '' = no filter.
+  pos_class: '',
 }
 
 type ListFilters = typeof EMPTY_LIST_FILTERS
@@ -1892,6 +1904,15 @@ export function Pharmacies() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className='space-y-1.5'>
+                    <Label>Класс оборудования</Label>
+                    {/* Several at once (OR) — sent as ?pos_class=a,b */}
+                    <MultiSelectFilter
+                      value={lf.pos_class ? lf.pos_class.split(',') : []}
+                      options={lfOptions?.pos_classes ?? []}
+                      onChange={(v) => changeLf({ pos_class: v.join(',') })}
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -1962,5 +1983,108 @@ export function Pharmacies() {
         </Card>
       </Main>
     </>
+  )
+}
+
+// Multi-choice filter: a Select-looking trigger opening a checkbox list.
+// Nothing picked = «Все» (no filter).
+function MultiSelectFilter({
+  value,
+  options,
+  onChange,
+}: {
+  value: string[]
+  options: string[]
+  onChange: (value: string[]) => void
+}) {
+  const selected = new Set(value)
+  // A picked value missing from the list (old link, list not loaded yet)
+  // stays visible so it can still be unticked.
+  const allOptions = [...value.filter((v) => !options.includes(v)), ...options]
+  const toggle = (option: string) =>
+    onChange(
+      selected.has(option)
+        ? value.filter((v) => v !== option)
+        : allOptions.filter((o) => selected.has(o) || o === option)
+    )
+  const label =
+    value.length === 0
+      ? 'Все'
+      : value.length <= 2
+        ? value.join(', ')
+        : `Выбрано: ${value.length}`
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type='button'
+          variant='outline'
+          className='w-full justify-between font-normal'
+        >
+          <span
+            className={cn(
+              'truncate',
+              value.length === 0 && 'text-muted-foreground'
+            )}
+          >
+            {label}
+          </span>
+          <ChevronDown className='size-4 shrink-0 opacity-50' />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align='start'
+        className='w-(--radix-popover-trigger-width) min-w-56 p-1'
+      >
+        {allOptions.length === 0 ? (
+          <p className='px-2 py-1.5 text-sm text-muted-foreground'>
+            Нет вариантов
+          </p>
+        ) : (
+          <div
+            className='max-h-72 overflow-y-auto'
+            role='listbox'
+            aria-multiselectable
+          >
+            {allOptions.map((option) => {
+              const checked = selected.has(option)
+              return (
+                <button
+                  key={option}
+                  type='button'
+                  role='option'
+                  aria-selected={checked}
+                  onClick={() => toggle(option)}
+                  className='flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-start text-sm hover:bg-accent hover:text-accent-foreground'
+                >
+                  <span
+                    className={cn(
+                      'flex size-4 shrink-0 items-center justify-center rounded-sm border border-primary',
+                      checked
+                        ? 'bg-primary text-primary-foreground'
+                        : 'opacity-60'
+                    )}
+                  >
+                    {checked && <Check className='size-3' />}
+                  </span>
+                  {option}
+                </button>
+              )
+            })}
+          </div>
+        )}
+        {value.length > 0 && (
+          <div className='mt-1 border-t pt-1'>
+            <button
+              type='button'
+              onClick={() => onChange([])}
+              className='w-full rounded-sm px-2 py-1.5 text-start text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+            >
+              Сбросить выбор
+            </button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   )
 }

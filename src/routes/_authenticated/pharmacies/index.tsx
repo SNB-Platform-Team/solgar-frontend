@@ -21,6 +21,8 @@ const pharmaciesSearchSchema = z.object({
   marketing_staff: z.string().optional().catch(undefined),
   // Оборудование: '' (Все) / yes (Есть) / no (Нет)
   equipment: z.string().optional().catch(undefined),
+  // Класс оборудования: comma-joined, e.g. 'Стойка,Корнер' ('' / absent = all)
+  pos_class: z.string().optional().catch(undefined),
 })
 
 export const Route = createFileRoute('/_authenticated/pharmacies/')({

@@ -43,6 +43,8 @@ export interface PharmacyFilterOptions {
   metros?: string[]
   /** Активность choices for the Фильтр panel (pharmacy_activeness, from DB). */
   activenesses?: string[]
+  /** «Класс оборудования» choices (POS classes) for the Фильтр panel. */
+  pos_classes?: string[]
 }
 
 /** One cascading level — GET filter-options/?brand=&level=&country=&area=&region= */
