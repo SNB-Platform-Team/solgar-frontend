@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ListFilter,
+  Minus,
   X,
 } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -104,10 +105,7 @@ const EMPTY_LIST_FILTERS = {
   promo: '',
   pharmacy_activeness: '',
   marketing_staff: '',
-  // «Оборудование»: '' (Все) / 'yes' (Есть) / 'no' (Нет). Backend ekipmani
-  // olan aptekalari id_in/id_not_in ile suzer (bkz. pharmacy_api).
-  equipment: '',
-  // «Класс оборудования»: several POS classes, comma-joined
+  // «Оборудование»: several POS classes, comma-joined
   // ('Стойка,Корнер') — pharmacy_api returns pharmacies with equipment of
   // ANY of them. '' = no filter.
   pos_class: '',
@@ -1886,26 +1884,6 @@ export function Pharmacies() {
                   </div>
                   <div className='space-y-1.5'>
                     <Label>Оборудование</Label>
-                    {/* pharmacy_api reads it as ?equipment= ('' / yes / no).
-                        'Есть' -> только аптеки с оборудованием, 'Нет' -> без. */}
-                    <Select
-                      value={lf.equipment || '__ALL__'}
-                      onValueChange={(v) =>
-                        changeLf({ equipment: v === '__ALL__' ? '' : v })
-                      }
-                    >
-                      <SelectTrigger className='w-full'>
-                        <SelectValue placeholder='Все' />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value='__ALL__'>Все</SelectItem>
-                        <SelectItem value='yes'>Есть</SelectItem>
-                        <SelectItem value='no'>Нет</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className='space-y-1.5'>
-                    <Label>Класс оборудования</Label>
                     {/* Several at once (OR) — sent as ?pos_class=a,b */}
                     <MultiSelectFilter
                       value={lf.pos_class ? lf.pos_class.split(',') : []}
@@ -1986,8 +1964,9 @@ export function Pharmacies() {
   )
 }
 
-// Multi-choice filter: a Select-looking trigger opening a checkbox list.
-// Nothing picked = «Все» (no filter).
+// Multi-choice filter: a Select-looking trigger opening a checkbox list,
+// topped by a «Все» row that ticks every option (or clears them all when
+// they're all ticked). Nothing picked = no filter.
 function MultiSelectFilter({
   value,
   options,
@@ -2007,12 +1986,17 @@ function MultiSelectFilter({
         ? value.filter((v) => v !== option)
         : allOptions.filter((o) => selected.has(o) || o === option)
     )
+  const allSelected =
+    options.length > 0 && options.every((o) => selected.has(o))
+  const toggleAll = () => onChange(allSelected ? [] : options)
   const label =
     value.length === 0
       ? 'Все'
-      : value.length <= 2
-        ? value.join(', ')
-        : `Выбрано: ${value.length}`
+      : allSelected
+        ? `Все (${options.length})`
+        : value.length <= 2
+          ? value.join(', ')
+          : `Выбрано: ${value.length}`
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -2046,6 +2030,29 @@ function MultiSelectFilter({
             role='listbox'
             aria-multiselectable
           >
+            <button
+              type='button'
+              role='option'
+              aria-selected={allSelected}
+              onClick={toggleAll}
+              className='flex w-full items-center gap-2 rounded-sm border-b px-2 py-1.5 text-start text-sm font-medium hover:bg-accent hover:text-accent-foreground'
+            >
+              <span
+                className={cn(
+                  'flex size-4 shrink-0 items-center justify-center rounded-sm border border-primary',
+                  allSelected
+                    ? 'bg-primary text-primary-foreground'
+                    : 'opacity-60'
+                )}
+              >
+                {allSelected ? (
+                  <Check className='size-3' />
+                ) : (
+                  value.length > 0 && <Minus className='size-3' />
+                )}
+              </span>
+              Все
+            </button>
             {allOptions.map((option) => {
               const checked = selected.has(option)
               return (

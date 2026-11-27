@@ -19,9 +19,7 @@ const pharmaciesSearchSchema = z.object({
   promo: z.string().optional().catch(undefined),
   pharmacy_activeness: z.string().optional().catch(undefined),
   marketing_staff: z.string().optional().catch(undefined),
-  // Оборудование: '' (Все) / yes (Есть) / no (Нет)
-  equipment: z.string().optional().catch(undefined),
-  // Класс оборудования: comma-joined, e.g. 'Стойка,Корнер' ('' / absent = all)
+  // Оборудование: POS classes, comma-joined, e.g. 'Стойка,Корнер' ('' / absent = all)
   pos_class: z.string().optional().catch(undefined),
 })
 
