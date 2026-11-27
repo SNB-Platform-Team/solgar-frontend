@@ -56,6 +56,7 @@ import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_a
 import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_authenticated/settings/display'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
 import { Route as AuthenticatedTasksIndexRouteImport } from './routes/_authenticated/tasks/index'
+import { Route as AuthenticatedTmDashboardIndexRouteImport } from './routes/_authenticated/tm-dashboard/index'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as ClerkauthSignInRouteImport } from './routes/clerk/(auth)/sign-in'
 import { Route as ClerkauthSignUpRouteImport } from './routes/clerk/(auth)/sign-up'
@@ -321,6 +322,12 @@ const AuthenticatedTasksIndexRoute = AuthenticatedTasksIndexRouteImport.update({
   path: '/tasks/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedTmDashboardIndexRoute =
+  AuthenticatedTmDashboardIndexRouteImport.update({
+    id: '/tm-dashboard/',
+    path: '/tm-dashboard/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedUsersIndexRoute = AuthenticatedUsersIndexRouteImport.update({
   id: '/users/',
   path: '/users/',
@@ -391,6 +398,7 @@ export interface FileRoutesByFullPath {
   '/sales-upload/': typeof AuthenticatedSalesUploadIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/tasks/': typeof AuthenticatedTasksIndexRoute
+  '/tm-dashboard/': typeof AuthenticatedTmDashboardIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
 }
 export interface FileRoutesByTo {
@@ -440,6 +448,7 @@ export interface FileRoutesByTo {
   '/sales-upload': typeof AuthenticatedSalesUploadIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
+  '/tm-dashboard': typeof AuthenticatedTmDashboardIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
 }
 export interface FileRoutesById {
@@ -494,6 +503,7 @@ export interface FileRoutesById {
   '/_authenticated/sales-upload/': typeof AuthenticatedSalesUploadIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
+  '/_authenticated/tm-dashboard/': typeof AuthenticatedTmDashboardIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
 }
 export interface FileRouteTypes {
@@ -546,6 +556,7 @@ export interface FileRouteTypes {
     | '/sales-upload/'
     | '/settings/'
     | '/tasks/'
+    | '/tm-dashboard/'
     | '/users/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -595,6 +606,7 @@ export interface FileRouteTypes {
     | '/sales-upload'
     | '/settings'
     | '/tasks'
+    | '/tm-dashboard'
     | '/users'
   id:
     | '__root__'
@@ -648,6 +660,7 @@ export interface FileRouteTypes {
     | '/_authenticated/sales-upload/'
     | '/_authenticated/settings/'
     | '/_authenticated/tasks/'
+    | '/_authenticated/tm-dashboard/'
     | '/_authenticated/users/'
   fileRoutesById: FileRoutesById
 }
@@ -997,6 +1010,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTasksIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/tm-dashboard/': {
+      id: '/_authenticated/tm-dashboard/'
+      path: '/tm-dashboard'
+      fullPath: '/tm-dashboard/'
+      preLoaderRoute: typeof AuthenticatedTmDashboardIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/users/': {
       id: '/_authenticated/users/'
       path: '/users'
@@ -1080,6 +1100,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSalesObsIndexRoute: typeof AuthenticatedSalesObsIndexRoute
   AuthenticatedSalesUploadIndexRoute: typeof AuthenticatedSalesUploadIndexRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
+  AuthenticatedTmDashboardIndexRoute: typeof AuthenticatedTmDashboardIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
 }
 
@@ -1118,6 +1139,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSalesObsIndexRoute: AuthenticatedSalesObsIndexRoute,
   AuthenticatedSalesUploadIndexRoute: AuthenticatedSalesUploadIndexRoute,
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
+  AuthenticatedTmDashboardIndexRoute: AuthenticatedTmDashboardIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
 }
 

@@ -144,6 +144,13 @@ export const sidebarData: SidebarData = {
                   screen: SCREENS.DOCTOR_MGR,
                   icon: ClipboardList,
                 },
+                {
+                  title: 'Дашборд ТМ',
+                  titleKey: 'nav.tmDashboard',
+                  url: '/tm-dashboard',
+                  screen: SCREENS.TM_DASHBOARD,
+                  icon: LayoutDashboard,
+                },
               ],
             },
           ],
